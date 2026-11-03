@@ -1,5 +1,7 @@
 # AuxiRuta — Modelo persistente del MVP revisado según los apuntes
 
+> Restricciones fijas: `AuxiRuta-reglas-de-negocio-MVP.md` (AR-MVP-1), con parámetros en `AuxiRuta-parametros-MVP.yml`. Cobertura circular de 15 km. Ante diferencias anteriores, prevalece el documento de reglas para límites, plazos y casos de borde.
+
 ## 1. Qué cambia respecto de la explicación inicial
 
 La explicación anterior de tablas era una alternativa ampliada. Este documento es el modelo propuesto para implementar el MVP: nueve entidades de Assistance, cuatro de Fleet y una tabla auxiliar de tipos admitidos. Keycloak administra su propio esquema.
@@ -376,3 +378,22 @@ TruckStatusHistory → TowTruck
 ```
 
 Las flechas representan referencias locales N→1. Las reservas apuntan por ID externo a la solicitud y Assistance apunta por IDs externos a Fleet. Keycloak no tiene FKs hacia ninguna base funcional.
+
+## 8. Ajustes necesarios por las reglas fijas AR-MVP-1
+
+Este apartado completa el esquema lógico anterior sin agregar nuevas bases ni microservicios:
+
+- Vehicle: agregar brand y model; tipos cerrados CAR/SUV/PICKUP y CHECK de peso entre 500 y 3.000 kg. Patente normalizada con longitud de 6 a 10.
+- AssistanceRequest: agregar access_conditions_confirmed, search_started_at, search_attempt_number (1..3), search_deadline, rules_version y snapshot de centro/radio y límites de rutas. Estas columnas reemplazan cualquier referencia previa a un rectángulo. Se guarda el inicio/plazo de cada búsqueda también en historial para conservar intentos anteriores.
+- Assignment: accepted_at debe provenir de la confirmación durable de Fleet; agregar dispatched_at y planned_arrival_at o guardar esos instantes en el historial de transición con acceso inequívoco. La cantidad de propuestas se deriva de las reservas efectivamente creadas; incluir reserved_at al recuperar una reserva aunque la respuesta inicial se haya perdido. AssignmentAttemptId persiste antes del HTTP.
+- Evaluation: snapshot de reglas AR-MVP-1, centro/radio, distancias máximas/mínimas, factor 1,25 y márgenes; agregar route_obtained_at y coordenadas exactas utilizadas (origen/destino), además de las de grúa en CandidateEvaluation. Guardar los valores individuales, no solo un nombre de versión, para poder auditar.
+- CandidateEvaluation: conservar distancias, duraciones crudas y ajustadas, fecha de obtención, llegada planificada y fin estimado. Guardar soportes de tipo/condición, cobertura y motivo que determinaron compatibilidad. La evaluación puede representar candidatos no evaluables temporalmente sin tratarlos como no elegibles permanentes.
+- ResourceReservation: agregar search_deadline_at y hold_seconds_requested; expires_at se calcula en Fleet como min(now + plazo ofrecido, search_deadline_at). La confirmación debe quedar con confirmed_at, aun si se pierde la respuesta. La API devuelve ese instante.
+- Incident: tipo del catálogo determina blocking; agregar generated_key UNIQUE NULL para demoras automáticas por solicitud/asignación/etapa y evitar duplicación. Puede derivarse prioridad de suspended_at sin persistir otra verdad duplicada.
+- Historial: registrar en details correcciones, revisión de datos, apertura de nuevo intento, snapshots de plazos y constancias de aviso. Las transiciones idempotentes requieren operation_key UNIQUE dentro de su ámbito para devolver el resultado anterior.
+- PendingFleetAction: persistir los datos necesarios del snapshot de compatibilidad/ruta y search_deadline de una reserva para que el reintento no dependa de campos que ya cambiaron. Las columnas son explícitas; no se introduce un payload genérico.
+- El chequeo de nueva solicitud debe impedirla también si la anterior es terminal pero conserva reserva/confirmación incierta o liberación pendiente. Esta condición no se resuelve solo con el índice de solicitudes activas.
+
+En Fleet la confirmación revalida contra su reloj y conserva la confirmación exitosa; una consulta posterior al plazo no la transforma en vencida. Reservas CONFIRMED no expiran automáticamente. Solicitudes terminales no eliminan sus tareas de limpieza.
+
+El detalle de clases/columnas es un diseño previo a implementación. El DDL y los DTO finales deben incorporar estas precisiones antes de comenzar a programar el flujo.

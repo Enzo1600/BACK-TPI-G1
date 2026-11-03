@@ -1,5 +1,7 @@
 # AuxiRuta — Operaciones por rol y alcance del MVP
 
+> Restricciones fijas: `AuxiRuta-reglas-de-negocio-MVP.md` (AR-MVP-1), con parámetros en `AuxiRuta-parametros-MVP.yml`. Cobertura circular de 15 km. Ante diferencias anteriores, prevalece el documento de reglas para límites, plazos y casos de borde.
+
 ## 1. Convenciones y responsabilidad
 
 Este documento y el de estados precisan la propuesta inicial de AuxiRuta y constituyen la referencia funcional del MVP. Los endpoints son el contrato propuesto para implementar, no una API ya construida.
@@ -16,12 +18,12 @@ Revisión según los apuntes: microservicios MVC con Controller → Service → 
 
 | Operación | Método y endpoint | Servicio | Comportamiento y restricciones |
 |---|---|---|---|
-| Registrar vehículo | POST /vehicles | A | Crea vehículo ACTIVE del usuario autenticado. Recibe patente, tipo y peso declarado positivo; controla duplicados de patente normalizada |
+| Registrar vehículo | POST /vehicles | A | Crea vehículo ACTIVE del usuario autenticado. Recibe patente, marca/modelo, tipo CAR/SUV/PICKUP y peso declarado de 500 a 3.000 kg; controla patente normalizada única |
 | Listar sus vehículos | GET /vehicles | A | Devuelve exclusivamente sus vehículos; permite filtrar por estado |
 | Consultar vehículo | GET /vehicles/{id} | A | Devuelve detalle si pertenece al usuario |
 | Editar vehículo | PATCH /vehicles/{id} | A | Actualiza datos permitidos; impide cambiar características de compatibilidad mientras tenga solicitud activa |
 | Activar o desactivar vehículo | PATCH /vehicles/{id}/registration-status | A | Cambia ACTIVE/INACTIVE; desactivar exige ausencia de solicitud activa |
-| Solicitar asistencia | POST /assistance-requests | A | Recibe vehicleId, coordenadas de origen/destino, condición ROLLABLE/NON_ROLLABLE y descripción. Verifica propiedad, vehículo activo y ausencia de otra solicitud activa. Crea REQUESTED y dispara evaluación |
+| Solicitar asistencia | POST /assistance-requests | A | Recibe vehicleId, coordenadas de origen/destino, condición ROLLABLE/NON_ROLLABLE, descripción de 10 a 1.000 caracteres y confirmación de acceso/carga no especial. Verifica propiedad, vehículo activo y ausencia de solicitud activa o liberación incierta pendiente. Crea REQUESTED y dispara evaluación |
 | Listar sus solicitudes | GET /assistance-requests | A | Filtra automáticamente por propietario; admite estado y fechas |
 | Consultar solicitud | GET /assistance-requests/{id} | A | Muestra estado, resumen de evaluación, asignación vigente y liberación pendiente si corresponde |
 | Consultar historial | GET /assistance-requests/{id}/history | A | Muestra transiciones y motivos de su solicitud |
@@ -41,14 +43,14 @@ El conductor no elige la grúa, no acepta propuestas del operador y no cambia es
 | Actualizar ubicación | PUT /tow-trucks/assigned-to-me/location | F | Guarda coordenadas y hora de recepción; no permite actualizar una grúa ajena. Es una actualización manual, sin GPS continuo |
 | Consultar propuestas y servicios | GET /operator/assignments | A | Lista exclusivamente asignaciones propias, pendientes y anteriores |
 | Consultar asignación | GET /assignments/{id} | A | Devuelve datos necesarios para realizar su servicio; exige pertenencia |
-| Aceptar propuesta | POST /assignments/{id}/acceptance | A | Confirma reserva vigente con Fleet; solo después pasa la solicitud a ASSIGNED |
+| Aceptar propuesta | POST /assignments/{id}/acceptance | A | Antes de expiresAt confirma con Fleet, revalidando datos/ruta vigentes; reserva de hasta 60 s limitada por búsqueda. Después pasa a ASSIGNED |
 | Rechazar propuesta | POST /assignments/{id}/rejection | A | Solo antes de aceptar; registra motivo, libera reserva y busca otra alternativa |
-| Registrar salida | POST /assistance-requests/{id}/dispatch | A | Desde ASSIGNED; verifica asignación y elegibilidad actual con Fleet antes de DISPATCHED |
+| Registrar salida | POST /assistance-requests/{id}/dispatch | A | Desde ASSIGNED, antes de acceptedAt + 5 min; ubicación de hasta 2 min y evaluación de hasta 5 min/recalculada. Verifica elegibilidad con Fleet antes de DISPATCHED |
 | Registrar llegada | POST /assistance-requests/{id}/arrival | A | DISPATCHED → ARRIVED |
 | Registrar carga | POST /assistance-requests/{id}/loading | A | ARRIVED → VEHICLE_LOADED; confirma que vehículo y condiciones coinciden con lo autorizado |
 | Iniciar traslado | POST /assistance-requests/{id}/transport-start | A | VEHICLE_LOADED → IN_TRANSIT |
-| Confirmar entrega | POST /assistance-requests/{id}/completion | A | IN_TRANSIT → COMPLETED; registra entrega y descarga en el destino acordado e inicia liberación de recursos |
-| Informar incidencia | POST /assistance-requests/{id}/incidents | A | Recibe tipo, descripción y carácter bloqueante/informativo. Una bloqueante durante ejecución suspende. Una avería comunica OUT_OF_SERVICE a Fleet |
+| Confirmar entrega | POST /assistance-requests/{id}/completion | A | IN_TRANSIT → COMPLETED; exige nota de entrega de 10 a 500 caracteres y descarga en destino; inicia liberación de recursos |
+| Informar incidencia | POST /assistance-requests/{id}/incidents | A | Recibe tipo del catálogo y descripción; la clase bloqueante/informativa se deriva del tipo. Una bloqueante durante ejecución suspende. Una avería comunica OUT_OF_SERVICE a Fleet |
 
 El operador no reasigna, no resuelve incidencias y no reactiva una grúa averiada. Antes del despacho puede informar un impedimento, que queda para coordinación; la asignación no se abandona mediante un cambio unilateral de disponibilidad.
 
@@ -67,7 +69,7 @@ Supervisa solicitudes y resuelve excepciones. No crea usuarios, no administra ca
 | Consultar peticiones de cancelación | GET /cancellation-requests | A | Filtra OPEN/APPROVED/REJECTED y solicitud |
 | Resolver petición de cancelación | POST /cancellation-requests/{id}/resolution | A | Acepta o rechaza con motivo. Aprobar valida que siga siendo cancelable; si ya está cargado se rechaza la petición y se trata como incidencia |
 | Cancelar servicio | POST /assistance-requests/{id}/cancellations | A | Antes del despacho, cancela con motivo. Después, exige suspensión previa a carga y constancia de aviso al operador. Si cumple, cierra peticiones OPEN como APPROVED |
-| Solicitar reasignación | POST /assistance-requests/{id}/reassignments | A | Desde ASSIGNED, o SUSPENDED antes de carga. Registra motivo, cierra asignación anterior y solo después busca otra. Si existe incidencia bloqueante, se utiliza su resolución REASSIGN |
+| Solicitar reasignación | POST /assistance-requests/{id}/reassignments | A | Desde ASSIGNED, o SUSPENDED antes de carga, con máximo 2 reasignaciones por solicitud. Registra motivo, cierra asignación anterior y abre otro intento de 10 min. Si existe incidencia bloqueante, se utiliza su resolución REASSIGN |
 | Corregir datos declarados para reevaluar | PATCH /assistance-requests/{id}/declared-vehicle-data | A | Solo SUSPENDED antes de carga por discrepancia. Permite peso, tipo y condición, con motivo y versión histórica. No cambia propietario, origen ni destino. Exige reevaluación antes de una nueva asignación |
 | Resolver incidencia | POST /incidents/{id}/resolution | A | CONTINUE, REASSIGN, CANCEL o CLOSE_UNRESOLVED según condiciones del documento de estados; nunca permite saltar directamente a COMPLETED |
 
@@ -93,9 +95,9 @@ ADMIN dispone de todas las operaciones de coordinación. Las operaciones persona
 | Consultar parámetros | GET /configuration/assistance | A | Muestra región, plazo de búsqueda, máximo de llegada, margen y límites efectivos; excluye secretos |
 | Consultar parámetros de flota | GET /configuration/fleet | F | Muestra antigüedad máxima de ubicación y duración de reserva; excluye secretos |
 
-Los parámetros se modifican mediante application.yml/variables de entorno y reinicio, no mediante PATCH ni tablas de configuración. Las solicitudes conservan sus plazos y las evaluaciones sus límites usados; las reservas mantienen su vencimiento calculado. Cambiar la configuración no reescribe esos datos.
+Los parámetros AR-MVP-1 quedan fijos para la entrega en application.yml/variables de entorno, no mediante PATCH ni tablas de configuración. Cambiarlos requiere revisar la versión de reglas y el compromiso. Las solicitudes conservan sus plazos y las evaluaciones sus límites usados; las reservas mantienen su vencimiento calculado. Cambiar la configuración no reescribe esos datos.
 
-La región del MVP es un rectángulo geográfico configurable con límites de latitud/longitud. No incluye edición cartográfica de polígonos. Los tipos de vehículo y compatibilidades son un catálogo cerrado del MVP; el administrador configura capacidades, no crea reglas mediante programación dinámica.
+La región del MVP es el círculo comercial de radio 15 km centrado en (-31.4167, -64.1833), cercano a Plaza San Martín. No coincide necesariamente con el ejido municipal. Se verifica con Haversine; sin cartografía de polígonos ni API geográfica adicional. Los tipos de vehículo y compatibilidades son un catálogo cerrado del MVP; el administrador configura capacidades, no crea reglas mediante programación dinámica.
 
 La creación de usuarios, asignación de roles y recuperación de contraseñas se realizan en Keycloak por su administrador, con consola propia. Tener ADMIN en AuxiRuta no concede automáticamente administración de Keycloak.
 
@@ -110,7 +112,7 @@ No corresponden a usuarios humanos ni se exponen públicamente. Usan client_cred
 | Consultar reserva | GET /internal/reservations/{assignmentAttemptId} | A → F | Recupera resultado cuando se perdió una respuesta |
 | Confirmar reserva | POST /internal/reservations/{assignmentAttemptId}/confirmation | A → F | HELD vigente → CONFIRMED; excluye aceptación posterior al vencimiento |
 | Liberar reserva/asignación | POST /internal/reservations/{assignmentAttemptId}/release | A → F | Libera de manera idempotente; no reactiva una grúa fuera de servicio |
-| Verificar elegibilidad antes de despacho/continuación | GET /internal/reservations/{assignmentAttemptId}/eligibility | A → F | Comprueba reserva confirmada, recurso operativo y habilitación vigente |
+| Verificar elegibilidad antes de despacho/continuación | GET /internal/reservations/{assignmentAttemptId}/eligibility | A → F | Comprueba reserva confirmada, operatividad y habilitación hasta el fin estimado; también se usa antes de cargar/iniciar traslado |
 | Registrar avería | POST /internal/tow-trucks/{id}/out-of-service | A → F | Marca avería con referencia a incidencia y clave idempotente |
 | Consultar recursos de reservas activas | POST /internal/reservations/status-queries | A → F | Lista acotada de IDs de intentos; devuelve estado de reserva, grúa y operador. Consulta sin efectos, POST para transportar filtro compuesto. Sin llamada inversa |
 | Evaluar ruta | Cliente HTTP de OpenRouteService | A → API externa | Obtiene duración y distancia de aproximación y traslado; valida respuesta y límites de uso |
@@ -161,7 +163,7 @@ Si una acción se registró durablemente para reintento, se responde 202 en luga
 2. El sistema valida propiedad, cobertura, admisión y exclusividad de solicitud activa.
 3. Fleet filtra recursos compatibles, habilitados, disponibles y con ubicación vigente.
 4. Assistance consulta rutas. Verifica llegada dentro del máximo y vigencia de habilitación durante el período estimado: aproximación + carga + traslado + descarga + margen. Los tiempos operativos son configurables.
-5. Ordena por llegada estimada y desempata por tiempo libre; un empate restante se resuelve por identificador estable.
+5. Preselecciona hasta 5 grúas por cercanía Haversine; entre candidatas viables con ruta evaluada ordena por llegada planificada, tiempo libre y UUID estable.
 6. Reserva un candidato y ofrece la asignación al operador.
 7. El operador acepta o rechaza; si vence o rechaza se prueba otra alternativa dentro del plazo.
 8. Tras aceptar se confirma con Fleet y se permite el despacho validado.
@@ -172,7 +174,7 @@ La ruta al destino participa en la evaluación de duración total y vigencia de 
 
 ### 8.3 Excepciones incluidas
 
-- Sin recursos, recurso incompatible, fuera de cobertura y habilitación insuficiente.
+- Sin recursos (busca hasta plazo/cupo), incompatibilidad, fuera de cobertura y habilitación insuficiente.
 - Rechazo y vencimiento de propuesta, aceptación concurrente con vencimiento y competencia entre solicitudes.
 - Fallas temporales de Fleet o API externa, datos externos inválidos y ausencia de ruta.
 - Cancelación antes del despacho y solicitud de cancelación posterior antes de la carga.
@@ -194,8 +196,8 @@ La ruta al destino participa en la evaluación de duración total y vigencia de 
 - Diagramas C4 C1 y C2 que representen lo implementado y README con puesta en marcha y recorrido de demostración.
 - Uso de Swagger o cliente HTTP para operar el backend. No se requiere interfaz web propia.
 - Spring Data JPA/Hibernate con JpaRepository, consultas derivadas/JPQL, DTOs y ResponseEntity. Transacciones cortas, sin llamadas HTTP dentro de bloqueos prolongados.
-- Auditoría funcional de estados, responsables y decisiones en la base. Los logs técnicos de diagnóstico no se declaran como una funcionalidad adicional del MVP.
-- Monitoreo con Actuator, métricas, correlación y rotación avanzada de logs quedan fuera del compromiso del MVP; su presencia en los apuntes no los convierte en requisitos del TPI.
+- Auditoría funcional de estados, responsables y decisiones en la base. Por decisión del equipo se incluyen logs básicos de diagnóstico con SLF4J/Logback, IDs del negocio y retención acotada en Docker; ver AuxiRuta-logging-basico.md. No se agrega ninguna base ni endpoint de logs.
+- Monitoreo con Actuator, métricas, correlación distribuida y plataformas externas quedan opcionales. La retención básica de logs Docker sí se configura como parte del logging elegido; su presencia en los apuntes no lo convierte en requisito de la cátedra.
 - Colección de pruebas funcionales de los escenarios comprometidos. Tests unitarios y stacks externos de logs no se declaran requisitos obligatorios de la cátedra.
 
 ### 8.5 Ampliación opcional: operaciones técnicas de administración (fuera del MVP)
@@ -238,7 +240,7 @@ Si se incorpora Actuator, el health del Gateway y los healthchecks deben tener u
 | Despliegue productivo de alta disponibilidad | Sin Kubernetes, réplicas múltiples ni operación comercial; tareas programadas diseñadas para una instancia por servicio |
 | Eliminación del historial | No hay borrado físico de operaciones históricas ni edición retroactiva de auditoría |
 | Edición dinámica de parámetros | Archivos y variables de entorno; sin PATCH ni tablas versionadas |
-| Monitoreo y observabilidad avanzada | Actuator, métricas, correlación, rotación y stacks ELK/Loki/Grafana/Prometheus son opcionales; no se comprometen como funcionalidades del MVP |
+| Monitoreo y observabilidad avanzada | Actuator, métricas, tracing y stacks ELK/Loki/Grafana/Prometheus opcionales. Sí se incluyen logs básicos y retención Docker |
 | Motor genérico de eventos o tareas | Acciones tipadas hacia Fleet; sin bus ni payloads JSON arbitrarios |
 
 ## 10. Evidencias mínimas para demostrar el compromiso
@@ -260,3 +262,11 @@ Si se incorpora Actuator, el health del Gateway y los healthchecks deben tener u
 ## 11. Referencia externa
 
 OpenRouteService: [servicios](https://openrouteservice.org/services/) y [autenticación y ejemplos](https://openrouteservice.org/dev/). La implementación debe configurar el endpoint vigente del proveedor, proteger la clave y manejar cuotas, timeouts y respuestas inválidas.
+
+## 12. Plazos y restricciones fijos AR-MVP-1
+
+Búsqueda: 10 min por intento, hasta 5 propuestas; aceptación/reserva: 60 s como máximo y limitada por deadline, mínimo 15 s de ventana. Máximo 2 reasignaciones tras aceptar (3 intentos totales). Se revisa búsqueda cada 30 s y reservas cada 15 s. La falta de despacho en 5 min invalida la asignación y usa el mismo cupo de reasignación.
+
+Aproximación <=15 km; traslado 500 m a 30 km; llegada planificada <=45 min; viaje ajustado <=90 min. Condiciones y fórmulas completas en AuxiRuta-reglas-de-negocio-MVP.md.
+
+Las demoras >15 min sobre estimación generan incidencia informativa por etapa/asignación, sin liberar la grúa. Estas tareas corresponden a seguimiento del negocio y no agregan monitoreo técnico al MVP. Las restricciones no pueden omitirse mediante ADMIN.

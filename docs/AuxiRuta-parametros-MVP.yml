@@ -1,0 +1,56 @@
+# AR-MVP-1: referencia funcional; distribuir en cada servicio según su responsabilidad.
+# Valores del proyecto, no límites legales ni garantía de tiempos reales.
+auxiruta:
+  rules-version: AR-MVP-1
+  display-time-zone: America/Argentina/Cordoba
+  coverage:
+    center-latitude: -31.4167
+    center-longitude: -64.1833
+    radius-meters: 15000
+    haversine-earth-radius-meters: 6371000
+    boundary-inclusive: true
+  vehicles:
+    allowed-types: [CAR, SUV, PICKUP]
+    min-weight-kg: 500
+    max-weight-kg: 3000
+    min-truck-capacity-kg: 500
+    max-truck-capacity-kg: 5000
+    required-qualification: LIGHT_TOWING
+  routing:
+    profile: driving-car
+    min-transport-meters: 500
+    max-transport-meters: 30000
+    max-approach-meters: 15000
+    max-arrival-budget-seconds: 2700
+    max-adjusted-transport-seconds: 5400
+    duration-factor: 1.25
+    arrival-margin-seconds: 300
+    planning-contingency-seconds: 600
+    max-route-age-seconds: 300
+    max-snap-distance-meters: 100
+  search:
+    attempt-timeout-seconds: 600
+    max-offers-per-attempt: 5
+    max-candidates-per-round: 5
+    evaluation-interval-seconds: 30
+    max-reassignments: 2
+    minimum-offer-window-seconds: 15
+  fleet:
+    hold-seconds: 60
+    max-location-age-seconds: 300
+    max-dispatch-location-age-seconds: 120
+    reconciliation-interval-seconds: 15
+  execution:
+    dispatch-deadline-seconds: 300
+    rollable-loading-seconds: 900
+    non-rollable-loading-seconds: 1800
+    unloading-seconds: 600
+    delay-tolerance-seconds: 900
+    suspension-priority-after-seconds: 900
+    delay-check-interval-seconds: 30
+  integration:
+    connect-timeout-seconds: 2
+    response-timeout-seconds: 5
+    recovery-delays-seconds: [5, 15, 30]
+    subsequent-recovery-delay-seconds: 60
+    rate-limit-default-wait-seconds: 60

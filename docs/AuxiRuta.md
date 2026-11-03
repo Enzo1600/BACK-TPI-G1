@@ -1,6 +1,8 @@
 # AuxiRuta — Coordinación de asistencia y remolque vehicular
 
-> Revisión según los apuntes: esta es la descripción general. El contrato actual se precisa en `AuxiRuta-estados-y-transiciones.md`, `AuxiRuta-operaciones-por-rol-y-alcance-MVP.md` y `AuxiRuta-modelo-persistente-MVP.md`. Los ajustes se justifican en `AuxiRuta-revision-segun-apuntes.md`.
+> Restricciones fijas: `AuxiRuta-reglas-de-negocio-MVP.md` (AR-MVP-1), con parámetros en `AuxiRuta-parametros-MVP.yml`. Cobertura circular de 15 km. Ante diferencias anteriores, prevalece el documento de reglas para límites, plazos y casos de borde.
+
+> Revisión según los apuntes: esta es la descripción general. El contrato actual se precisa en `AuxiRuta-estados-y-transiciones.md`, `AuxiRuta-operaciones-por-rol-y-alcance-MVP.md` y `AuxiRuta-modelo-persistente-MVP.md`.
 
 ## Alcance
 
@@ -8,7 +10,7 @@ Un sistema donde los conductores solicitan asistencia para trasladar un vehícul
 
 El conductor informa la ubicación del vehículo y el destino del traslado. El sistema evalúa alternativas, reserva una grúa y acompaña el servicio hasta la entrega.
 
-Para el MVP se contempla una única empresa de asistencia, solicitudes de atención inmediata y traslados dentro de una región definida. Cada grúa atiende un servicio a la vez.
+Para el MVP se contempla una única empresa de asistencia, solicitudes de atención inmediata y traslados con extremos dentro del círculo comercial de radio 15 km desde (-31.4167, -64.1833), en referencia a Córdoba Capital. Cada grúa atiende un servicio a la vez.
 
 Quedan fuera del alcance los pagos, las aseguradoras, las reparaciones mecánicas, el seguimiento GPS continuo y la atención de emergencias médicas.
 
@@ -85,8 +87,8 @@ Documentación: [servicios de OpenRouteService](https://openrouteservice.org/ser
 - El conductor solo puede solicitar asistencia para un vehículo registrado a su nombre dentro del sistema.
 - Un vehículo no puede tener dos solicitudes activas simultáneamente.
 - El origen y el destino deben estar dentro de la región atendida.
-- El peso declarado del vehículo no puede superar la capacidad de carga de la grúa.
-- La grúa debe admitir el tipo de vehículo solicitado.
+- El peso declarado del vehículo debe estar entre 500 y 3.000 kg y no superar la capacidad de la grúa de plataforma.
+- La grúa debe admitir el tipo CAR, SUV o PICKUP solicitado. Se excluyen remolques enganchados y rescates especiales.
 - Si el vehículo no puede rodar, debe asignarse un equipo compatible con esa condición.
 - Grúa y operador deben estar activos y disponibles.
 - La habilitación del operador debe permanecer vigente durante el período estimado del servicio.
@@ -215,7 +217,7 @@ Docker Compose permite iniciar Gateway, microservicios, Keycloak y PostgreSQL, i
 
 Los microservicios funcionales utilizan Spring MVC, RestClient y Spring Data JPA/Hibernate con JpaRepository. El Gateway utiliza la variante WebFlux mostrada en clase y seguridad reactiva; permanece separado de los servicios MVC.
 
-Logs técnicos básicos para diagnóstico pueden utilizarse durante el desarrollo, sin declararlos como una funcionalidad evaluable adicional. Actuator, correlación, rotación de logs y plataformas ELK/Loki/Grafana quedan como mejoras opcionales fuera del compromiso del MVP. La auditoría funcional de estados y decisiones en la base sí pertenece al dominio comprometido.
+Por decisión del equipo se incluyen logs básicos con SLF4J/Logback a consola, IDs del negocio y retención acotada en Docker; detalle en AuxiRuta-logging-basico.md. Es un compromiso propio, no una exigencia adicional de la cátedra. Actuator, tracing distribuido y plataformas externas siguen opcionales. La auditoría funcional de estados y decisiones permanece en PostgreSQL.
 
 La clave de la API externa se configura mediante variables de entorno y no se incorpora al repositorio.
 
@@ -234,3 +236,7 @@ También se demostrarán:
 - Cancelación con liberación del recurso.
 
 El seguimiento GPS, las notificaciones, los pagos y la integración con aseguradoras quedan fuera del compromiso inicial.
+
+## Reglas concretas de la entrega AR-MVP-1
+
+El círculo es comercial y no el límite municipal exacto. Origen, destino y grúa candidata deben cumplirlo. Aproximación <=15 km por calles; traslado entre 500 m y 30 km. Llegada planificada <=45 min, viaje ajustado <=90 min y factor de duración 1,25. Búsqueda de 10 min, hasta 5 propuestas por intento y reservas de hasta 60 s. Máximo 2 reasignaciones después de aceptación. Partida antes de 5 min. Todos los detalles y casos de borde están en AuxiRuta-reglas-de-negocio-MVP.md.

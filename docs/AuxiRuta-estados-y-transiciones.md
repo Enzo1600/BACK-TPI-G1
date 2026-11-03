@@ -1,5 +1,7 @@
 # AuxiRuta — Estados y transiciones del MVP
 
+> Restricciones fijas: `AuxiRuta-reglas-de-negocio-MVP.md` (AR-MVP-1), con parámetros en `AuxiRuta-parametros-MVP.yml`. Cobertura circular de 15 km. Ante diferencias anteriores, prevalece el documento de reglas para límites, plazos y casos de borde.
+
 ## 1. Propósito y decisiones del modelo
 
 Este documento precisa la propuesta inicial. Cuando exista una diferencia, estas definiciones son la referencia para el MVP junto con el documento de operaciones y alcance.
@@ -16,8 +18,8 @@ Assistance es dueño de solicitudes, vehículos, asignaciones e incidencias. Fle
 |---|---|---|---|
 | REQUESTED | Solicitud registrada, todavía sin evaluación concluida | El conductor solicita asistencia | PENDING_EVALUATION, AWAITING_ACCEPTANCE, REJECTED, UNFULFILLED, CANCELLED |
 | PENDING_EVALUATION | Falta información confiable por una falla temporal de Fleet o de rutas | El evaluador detecta timeout, error temporal o respuesta inválida | AWAITING_ACCEPTANCE, REJECTED, UNFULFILLED, CANCELLED |
-| AWAITING_ACCEPTANCE | Hay una reserva temporal de grúa y operador y se espera respuesta del operador | Fleet confirma la reserva | ASSIGNED, SEARCHING_ALTERNATIVE, CANCELLED |
-| ASSIGNED | El operador aceptó y Fleet confirmó la asignación | Confirmación exitosa de la reserva | DISPATCHED, SEARCHING_ALTERNATIVE, CANCELLED |
+| AWAITING_ACCEPTANCE | Hay una reserva temporal y se espera respuesta del operador | Fleet confirma la reserva temporal | ASSIGNED, SEARCHING_ALTERNATIVE, CANCELLED, UNFULFILLED |
+| ASSIGNED | El operador aceptó y Fleet confirmó la asignación | Confirmación exitosa de la reserva | DISPATCHED, SEARCHING_ALTERNATIVE, CANCELLED, UNFULFILLED |
 | DISPATCHED | La grúa salió hacia el origen | El operador registra la salida | ARRIVED, SUSPENDED |
 | ARRIVED | La grúa llegó al vehículo, que todavía no fue cargado | El operador confirma llegada | VEHICLE_LOADED, SUSPENDED |
 | VEHICLE_LOADED | El vehículo fue cargado | El operador confirma carga | IN_TRANSIT, SUSPENDED |
@@ -43,16 +45,16 @@ COMPLETED ← IN_TRANSIT ← VEHICLE_LOADED ← ARRIVED
 ### 2.2 Búsqueda, reintentos y vencimientos
 
 - Una falla temporal deja la evaluación pendiente; no constituye un rechazo. Se usa RestClient con timeouts y reintentos acotados. Resilience4j queda como mejora opcional.
-- El plazo total de búsqueda comienza al crear la solicitud y no se reinicia por cada candidato ni por los reintentos técnicos.
-- Si no hay candidatos viables, termina en UNFULFILLED. Si falta información por una falla temporal, se reintenta hasta el vencimiento del plazo.
+- Búsqueda: 10 min desde creación, hasta 5 propuestas reservadas por intento. No se reinicia por cada candidato/reintento. Reserva/aceptación: hasta 60 s, limitada por el plazo restante; no se propone si quedan menos de 15 s.
+- Si no hay candidatos en una ronda, se consulta cada 30 s hasta el plazo. Termina UNFULFILLED al vencer o agotar 5 propuestas. Una confirmación incierta se resuelve antes de concluir que no hubo aceptación. La incertidumbre técnica mantiene PENDING_EVALUATION.
 - Una propuesta rechazada o vencida pasa a SEARCHING_ALTERNATIVE; se descarta ese candidato durante el intento de búsqueda actual.
 - El vencimiento de una reserva no es un estado terminal de la solicitud: dispara otra búsqueda, si queda tiempo.
-- Una reasignación autorizada por el coordinador abre un nuevo intento de búsqueda con su propio plazo e historial. La solicitud conserva su identificador.
-- Una solicitud terminal no se reabre. El conductor puede crear otra, vinculada opcionalmente a la anterior.
+- Una reasignación válida abre otro intento de 10 min con historial. Máximo 2 reasignaciones después de aceptación y 3 intentos totales. Un impedimento antes del despacho o falta de partida en 5 min también consume cupo; los rechazos antes de aceptación no lo consumen.
+- Una solicitud terminal no se reabre. Se permite otra cuando esté confirmada la liberación y no exista reserva incierta pendiente para el vehículo.
 
 ### 2.3 Aceptación y despacho
 
-La aceptación solo es válida mientras la reserva esté vigente. Fleet decide atómicamente si la confirma o ya venció. Assistance pasa a ASSIGNED únicamente después de esa confirmación.
+La aceptación es válida antes de expiresAt. Fleet decide atómicamente; al coincidir con el límite ya venció. Assistance pasa a ASSIGNED después de confirmar. Si Fleet confirmó a tiempo y se perdió la respuesta, recuperar el resultado después del plazo no invalida la aceptación. Despacho: antes de acceptedAt + 5 min; el endpoint valida el plazo aunque la tarea no haya corrido.
 
 Antes del despacho se verifican asignación activa, recurso operativo y habilitación vigente. Una dependencia no disponible impide despachar y permite reintentar. Una incompatibilidad confirmada exige otra alternativa. No se despacha con una validación antigua si ya dejó de ser válida.
 
@@ -73,9 +75,9 @@ Si Fleet registra un impedimento mientras la solicitud está AWAITING_ACCEPTANCE
 | OPEN | Informada y pendiente de resolución | Operador asignado o coordinador la registra |
 | RESOLVED | Existe una resolución documentada | Coordinador |
 
-Una incidencia tiene tipo, descripción, severidad bloqueante o informativa, solicitud, asignación, reportante y fechas. La resolución contiene acción adoptada, explicación, responsable y fecha.
+Una incidencia tiene tipo del catálogo AR-MVP-1, descripción, clase bloqueante/informativa derivada del tipo, solicitud, asignación, reportante y fechas. El cliente no elige libremente esa clase. La resolución contiene acción adoptada, explicación, responsable y fecha.
 
-Una incidencia informativa no cambia el estado de la solicitud. Una bloqueante lleva DISPATCHED, ARRIVED, VEHICLE_LOADED o IN_TRANSIT a SUSPENDED y conserva `suspendedFromStatus`. El MVP admite una sola incidencia bloqueante abierta por solicitud; otras observaciones pueden ser informativas.
+Una incidencia informativa no cambia el estado de la solicitud. Demora mayor a 15 min sobre llegada/carga/traslado estimados registra una incidencia informativa deduplicada; no completa ni libera recursos. Una suspensión de más de 15 min se prioriza para coordinación, sin cierre automático. Una bloqueante lleva DISPATCHED, ARRIVED, VEHICLE_LOADED o IN_TRANSIT a SUSPENDED y conserva `suspendedFromStatus`. El MVP admite una sola incidencia bloqueante abierta por solicitud; otras observaciones pueden ser informativas.
 
 Resoluciones permitidas:
 
@@ -193,3 +195,7 @@ Primera grúa: ACTIVE/ASSIGNED → OUT_OF_SERVICE/ASSIGNED → OUT_OF_SERVICE/FR
 ### Avería después de cargar
 
 Solicitud: IN_TRANSIT → SUSPENDED. Se permite continuar con el mismo recurso tras solucionar y validar el impedimento, o cerrar con CLOSED_UNRESOLVED y constancia de custodia. El transbordo y la coordinación automática de una segunda grúa quedan fuera del MVP.
+
+## 9. Límites geográficos y temporales de AR-MVP-1
+
+Cobertura: radio de 15.000 m desde (-31.4167, -64.1833), con Haversine. Aproximación por calles <=15 km; traslado entre 500 m y 30 km. Llegada planificada <=45 min y viaje ajustado <=90 min, con factor 1,25. Vehículos CAR/SUV/PICKUP de 500 a 3.000 kg. Solo plataforma. Los detalles de fórmulas, habilitaciones, plazos, máximo de reasignaciones y recuperación están en el documento de reglas. No existe un máximo real de tres horas que cierre servicios automáticamente.

@@ -16,7 +16,7 @@ Los archivos actuales están entregados junto a este documento. Al crear el repo
 | AuxiRuta-estados-y-transiciones.md | Estados de solicitud, vehículo, grúa, reserva e incidencia |
 | AuxiRuta-operaciones-por-rol-y-alcance-MVP.md | Roles, endpoints propuestos y alcance |
 | AuxiRuta-modelo-persistente-MVP.md | Entidades, tablas y precisiones de AR-MVP-1 |
-| AuxiRuta-revision-segun-apuntes.md | Justificación de ajustes frente al material de clase |
+| AuxiRuta-logging-basico.md | Logging básico incorporado por decisión del equipo |
 
 Precedencia por responsabilidad: AR-MVP-1 determina el negocio; este archivo fija nombres, puertos y organización técnica; el documento de operaciones define el contrato propuesto hasta que se escriba OpenAPI. El YAML de parámetros debe coincidir con AR-MVP-1. Un resumen no puede cambiar una regla silenciosamente.
 
@@ -279,7 +279,7 @@ Valores principales: radio 15 km desde (-31.4167, -64.1833); vehículos CAR/SUV/
 8. Desarrollo por recorridos pequeños y verificables: entidad/repositorio/regla/endpoint y demostración funcional. Mantener un servicio compilable al avanzar.
 9. No presentar clases, bases, contratos, realm o diagramas como implementados si solo están diseñados. Registrar fallos y pendientes con precisión.
 10. No agregar tecnologías ajenas al alcance sin una necesidad justificada y una decisión explícita del equipo. Actuator y monitoreo siguen opcionales.
-11. Logs básicos de diagnóstico sin secretos. El historial persistente del negocio se mantiene aunque no haya una plataforma de observabilidad.
+11. Logging básico incluido por decisión del equipo: SLF4J/Logback a consola, IDs de solicitud/asignación/reserva, niveles y retención Docker. Ver AuxiRuta-logging-basico.md. Sin tablas adicionales, Actuator ni stack externo obligatorio. El historial persistente sigue separado.
 12. Cada cambio relevante actualiza las reglas, contratos y C2 afectados. El equipo debe poder explicar y modificar el código presentado.
 13. Scripts .sh con LF en Windows; .gitattributes declara *.sh text eol=lf. .gitignore excluye target/, .env y archivos de IDE apropiados.
 14. Probar idempotencia, concurrencia, plazos y recuperación con casos funcionales; los tests automatizados se incorporan cuando aporten evidencia útil, sin inflar el compromiso académico.
@@ -323,6 +323,7 @@ El ejemplo de SkyClear se utiliza como referencia de organización. Sus instrucc
 - [ ] Implementar OpenRouteService, evaluaciones y reserva/aceptación exclusivas.
 - [ ] Completar ejecución, cancelación, incidencias y reasignación previa a carga.
 - [ ] Implementar vencimientos, acciones pendientes y reconciliación.
+- [ ] Implementar el logging básico según AuxiRuta-logging-basico.md.
 - [ ] Completar Dockerfiles/Compose, documentación y colección funcional; verificar arranque reproducible con volumen vacío y reinicio conservando datos.
 
 Pendientes técnicos que no deben darse por probados: parche exacto de Temurin, versiones del entorno Docker/Compose, URL vigente y cuotas de la cuenta OpenRouteService, configuración real de audiencias/redirect URIs, mecanismo SQL/JPA de exclusividad y pasos de actualización del esquema con datos existentes.
