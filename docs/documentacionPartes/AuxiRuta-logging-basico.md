@@ -38,7 +38,7 @@ Un rechazo previsto del negocio no es ERROR. Un timeout con reintento previsto n
 | Aplicación | Eventos incluidos |
 |---|---|
 | Gateway | Método, ruta normalizada, código de respuesta y duración; fallos de enrutamiento y acceso sin exponer el token |
-| Assistance | Creación de solicitud, resultado/motivo de evaluación, propuesta/aceptación/rechazo, transiciones, cancelaciones, incidencias, reasignaciones y resultado de recuperación |
+| Assistance | Creación de solicitud, resultado/motivo de evaluación, propuesta/aceptación/rechazo, transiciones, cancelaciones, reasignaciones y resultado de recuperación |
 | Fleet | Reserva creada/confirmada/liberada/vencida, conflicto de exclusividad, cambio operativo de grúa, cambios administrativos relevantes de operador/vínculo y errores de persistencia |
 | Cliente de rutas en Assistance | Proveedor/operación, resultado HTTP o tipo de error y duración; sin URL completa que incluya coordenadas o credenciales |
 
@@ -76,6 +76,6 @@ Un mensaje “confirmado” solo se emite tras confirmar el resultado local/remo
 4. Verificar que los logs no contengan credenciales, tokens ni datos personales completos.
 5. Reiniciar aplicaciones y verificar que la verdad del negocio y acciones pendientes se recuperen desde PostgreSQL, sin depender de conservar logs.
 
-Estos son criterios de verificación del logging elegido por el equipo; no sustituyen los escenarios funcionales de AR-MVP-4.
+Estos son criterios de verificación del logging elegido por el equipo; no sustituyen los escenarios funcionales de AR-MVP-5.
 
-Los registros de demora y las búsquedas alternativas anteriores al despacho son automáticos. Un error de infraestructura puede exigir mantenimiento técnico; los logs no habilitan al administrador a elegir estados, aprobar cancelaciones ni descartar reservas inciertas. Las demoras informativas no requieren revisión humana.
+Las búsquedas alternativas anteriores al despacho son automáticas. Un error de infraestructura puede exigir mantenimiento técnico; los logs no habilitan al administrador a elegir estados, aprobar cancelaciones ni descartar reservas inciertas.

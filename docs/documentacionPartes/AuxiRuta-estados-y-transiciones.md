@@ -1,6 +1,6 @@
 # AuxiRuta — Estados y transiciones del MVP
 
-> Línea base vigente: **AR-MVP-4**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
+> Línea base vigente: **AR-MVP-5**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
 
 ### 6.1 Solicitud
 
@@ -37,20 +37,9 @@ Cada transición registra estado anterior/nuevo, instante, actor y motivo. Las a
 | Ocupación | FREE, HELD, ASSIGNED | Derivada de reservas activas |
 | Reserva Fleet | HELD, CONFIRMED, RELEASED, EXPIRED | Retención y compromiso exclusivo |
 | Propuesta/asignación | RESERVATION_PENDING, RESERVATION_FAILED, PROPOSED, ACCEPTED, REJECTED, EXPIRED, CANCELLED, CLOSED | Historial de cada intento |
-| Registro de demora | OPEN, RESOLVED | Informativo; apertura y cierre automáticos |
 
 Fleet aplica HELD → CONFIRMED/RELEASED/EXPIRED y CONFIRMED → RELEASED. Las confirmadas no vencen automáticamente. PROPOSED puede terminar REJECTED, EXPIRED o CANCELLED. Una asignación ACCEPTED pasa a CLOSED al finalizar normalmente o al ser reemplazada antes del despacho. Liberar una reserva no cambia el estado operativo del equipo.
 
-### 6.3 Demoras informativas automáticas
-
-| Tipo | Detección | Tratamiento |
-|---|---|---|
-| DELAYED_ARRIVAL | Job al superar tolerancia de llegada | Registro informativo; cierre al llegar o terminar asignación |
-| LOADING_DELAY | Job al superar tolerancia de carga | Registro informativo; cierre al cargar o terminar asignación |
-| TRANSPORT_DELAY | Job al superar tolerancia de traslado | Registro informativo; cierre al entregar o terminar asignación |
-
-Se conserva Incident como entidad de demoras informativas, con estados OPEN y RESOLVED. SYSTEM abre un registro por asignación y etapa y lo cierra al completar la etapa. No altera el estado de la solicitud ni requiere acción humana. No existen endpoints para crear o resolver estos registros.
-
 ## Ejecución
 
-Desde DISPATCHED el flujo es DISPATCHED → ARRIVED → VEHICLE_LOADED → IN_TRANSIT → COMPLETED. Cada etapa es declarada por el operador asignado. Las demoras no alteran esta secuencia.
+Desde DISPATCHED el flujo es DISPATCHED → ARRIVED → VEHICLE_LOADED → IN_TRANSIT → COMPLETED. Cada etapa es declarada por el operador asignado.

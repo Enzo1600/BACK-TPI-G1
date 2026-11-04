@@ -1,7 +1,7 @@
-# AR-MVP-4: referencia funcional; distribuir en cada servicio según su responsabilidad.
+# AR-MVP-5: referencia funcional; distribuir en cada servicio según su responsabilidad.
 # Valores del proyecto, no límites legales ni garantía de tiempos reales.
 auxiruta:
-  rules-version: AR-MVP-4
+  rules-version: AR-MVP-5
   display-time-zone: America/Argentina/Cordoba
   coverage:
     center-latitude: -31.4167
@@ -53,8 +53,6 @@ auxiruta:
     rollable-loading-seconds: 900
     non-rollable-loading-seconds: 1800
     unloading-seconds: 600
-    delay-tolerance-seconds: 900
-    delay-check-interval-seconds: 30
   integration:
     connect-timeout-seconds: 2
     response-timeout-seconds: 5

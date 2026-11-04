@@ -3,9 +3,9 @@
 | Atributo | Valor |
 |---|---|
 | Sistema | AuxiRuta |
-| Versión documental | 2.2 |
+| Versión documental | 2.3 |
 | Fecha | 4 de noviembre de 2026 |
-| Línea base funcional | AR-MVP-4 |
+| Línea base funcional | AR-MVP-5 |
 | Estado | Diseño definido; implementación pendiente |
 | Alcance | Backend de asistencia y remolque de vehículos livianos |
 
@@ -15,7 +15,7 @@
 - [2. Contexto, alcance y actores](#2-contexto-alcance-y-actores)
 - [3. Arquitectura y límites funcionales](#3-arquitectura-y-límites-funcionales)
 - [4. Plataforma tecnológica y artefactos](#4-plataforma-tecnológica-y-artefactos)
-- [5. Restricciones del dominio AR-MVP-4](#5-restricciones-del-dominio-ar-mvp-4)
+- [5. Restricciones del dominio AR-MVP-5](#5-restricciones-del-dominio-ar-mvp-5)
 - [6. Estados y transiciones](#6-estados-y-transiciones)
 - [7. Procesos colaborativos](#7-procesos-colaborativos)
 - [8. Integración externa](#8-integración-externa)
@@ -53,19 +53,19 @@ AuxiRuta administra solicitudes inmediatas de traslado de vehículos livianos pa
 |---|---|
 | Conductor — DRIVER | Registrar vehículos propios, crear y consultar solicitudes propias y cancelar únicamente antes de la primera asignación aceptada |
 | Operador — OPERATOR | Declarar disponibilidad y ubicación, aceptar/rechazar propuestas, registrar las etapas de sus servicios |
-| Administrador — ADMIN | Administrar operadores, habilitaciones, grúas y vínculos; consultar globalmente solicitudes, historial, demoras y parámetros |
+| Administrador — ADMIN | Administrar operadores, habilitaciones, grúas y vínculos; consultar globalmente solicitudes, historial y parámetros |
 
-ADMIN no es un permiso universal: no puede aceptar propuestas, registrar etapas por otro operador, cancelar solicitudes ajenas, elegir una grúa, resolver incidencias ni forzar estados. Si una persona reúne varios roles, cada operación sigue exigiendo la propiedad o asignación del rol correspondiente. La identidad procede del subject del JWT.
+ADMIN no es un permiso universal: no puede aceptar propuestas, registrar etapas por otro operador, cancelar solicitudes ajenas, elegir una grúa ni forzar estados. Si una persona reúne varios roles, cada operación sigue exigiendo la propiedad o asignación del rol correspondiente. La identidad procede del subject del JWT.
 
 ### 2.1 Supuestos y exclusiones
 
-Se asumen correctos los datos declarados del vehículo, accesible el punto de retiro y disponible el destino. Los operadores pueden cumplir su tarea sin imprevistos personales. El alta de operadores es administrada por la empresa: se crea su identidad en Keycloak, se asigna OPERATOR y se registra en Fleet su perfil, habilitación y vínculo con una grúa. No existe registro libre de prestadores independientes. La habilitación y disponibilidad se controlan para admitir cada asignación; el vencimiento durante una ejecución ya despachada no abre una incidencia ni requiere una decisión humana. Se conserva el snapshot utilizado y la exclusividad del recurso hasta liberar.
+Se asumen correctos los datos declarados del vehículo, accesible el punto de retiro y disponible el destino. Los operadores pueden cumplir su tarea sin imprevistos personales. El alta de operadores es administrada por la empresa: se crea su identidad en Keycloak, se asigna OPERATOR y se registra en Fleet su perfil, habilitación y vínculo con una grúa. No existe registro libre de prestadores independientes. La habilitación y disponibilidad se controlan para admitir cada asignación; el vencimiento durante una ejecución ya despachada no requiere una decisión humana. Se conserva el snapshot utilizado y la exclusividad del recurso hasta liberar.
 
 Se asume continuidad operativa desde el despacho hasta la entrega. Las etapas de ejecución son declaradas por el operador y no requieren evaluación administrativa.
 
 Se excluyen pagos, tarifas, facturación, aseguradoras, reparaciones, emergencias, rescate de personas, sanciones, reputación, servicios futuros, múltiples empresas, paradas intermedias, optimización global, GPS continuo, mapas interactivos, geocodificación, fotografías, firmas y documentación adjunta. No se permite elegir grúa ni modificar origen o destino. El origen y el destino se conservan durante toda la solicitud; una sustitución retira el vehículo en el origen original.
 
-No hay coordinación humana del servicio, peticiones de cancelación, correcciones de datos durante la ejecución ni resoluciones manuales de incidencias. Las notificaciones a usuarios continúan excluidas: el seguimiento se consulta por API. El mantenimiento administrativo y el diagnóstico técnico no constituyen aprobaciones del flujo de asistencia.
+No hay coordinación humana del servicio, peticiones de cancelación, correcciones de datos durante la ejecución. Las notificaciones a usuarios continúan excluidas: el seguimiento se consulta por API. El mantenimiento administrativo y el diagnóstico técnico no constituyen aprobaciones del flujo de asistencia.
 
 ## 3. Arquitectura y límites funcionales
 
@@ -73,7 +73,7 @@ No hay coordinación humana del servicio, peticiones de cancelación, correccion
 
 | Componente | Responsabilidad | Datos propios |
 |---|---|---|
-| assistance-service | Administrar solicitudes, evaluar viabilidad y recorridos, seleccionar alternativas y coordinar el ciclo del servicio | Vehículos, solicitudes, evaluaciones, propuestas/asignaciones, historial, incidencias automáticas y acciones pendientes hacia Fleet |
+| assistance-service | Administrar solicitudes, evaluar viabilidad y recorridos, seleccionar alternativas y coordinar el ciclo del servicio | Vehículos, solicitudes, evaluaciones, propuestas/asignaciones, historial y acciones pendientes hacia Fleet |
 | fleet-service | Administrar la capacidad operativa y garantizar exclusividad de recursos | Operadores, habilitación vigente, grúas, vínculo actual grúa/operador, reservas e historial operativo de grúas |
 | api-gateway | Enrutar y controlar el acceso externo a las APIs | Configuración de rutas y seguridad; sin base de negocio |
 | Keycloak | Administrar identidad, autenticación y emisión de tokens | Usuarios, credenciales, roles, clientes y configuración del realm |
@@ -98,7 +98,7 @@ Los servicios funcionales aplican la siguiente distribución:
 | models | Representar entidades persistentes y valores del dominio |
 | dtos | Definir contratos de entrada, salida e integración |
 | clients | Encapsular RestClient, serialización y errores remotos |
-| jobs | Ejecutar evaluación pendiente, vencimientos, demoras y reconciliación |
+| jobs | Ejecutar evaluación pendiente, vencimientos y reconciliación |
 | config / exceptions | Configuración tipada, seguridad y tratamiento de errores |
 
 Se utiliza inyección por constructor. Los servicios no deben guardar información de la petición actual en atributos mutables compartidos. Las entidades no se administran como beans singleton.
@@ -146,7 +146,7 @@ RestClient se obtiene a través de Spring Web. La integración de Keycloak usa e
 
 Lombok, DevTools y herramientas de tests se incorporan cuando resulten útiles. Actuator, Resilience4j, Flyway/Liquibase, brokers, service discovery, configuración centralizada y stacks de observabilidad quedan fuera de la línea base.
 
-## 5. Restricciones del dominio AR-MVP-4
+## 5. Restricciones del dominio AR-MVP-5
 
 ### 5.1 Parámetros y semántica de límites
 
@@ -185,8 +185,6 @@ Los valores siguientes constituyen la única tabla normativa de parámetros de e
 | Antigüedad de evaluación de rutas | Hasta 300 s |
 | Plazo para despacho desde aceptación | 300 s |
 | Ajuste máximo de coordenada a la red vial | 100 m |
-| Tolerancia adicional de demora por etapa | 900 s |
-| Comprobación de demoras | Cada 30 s |
 
 Los extremos de peso, distancia, capacidad y antigüedad son inclusivos. Los vencimientos de búsqueda, aceptación y despacho son exclusivos: al alcanzar el instante límite no se admite la acción. La presentación redondeada de una distancia no modifica la comparación del valor original.
 
@@ -280,13 +278,13 @@ Antes de despachar se revalidan reserva confirmada, estado operativo, ubicación
 
 Si se agotan las reasignaciones, vence la búsqueda o se agotan sus propuestas sin aceptación, la solicitud termina UNFULFILLED con motivo. Una confirmación remota incierta se reconcilia antes de concluir que no existe aceptación válida. La nueva búsqueda comienza al confirmar la liberación anterior; su plazo no se consume durante esa limpieza técnica.
 
-Una vez en DISPATCHED no se reasigna ni se cancela el servicio: el operador registra llegada, carga, traslado y entrega. Se conservan el origen, el destino y los datos declarados. Los retrasos solo generan registros informativos.
+Una vez en DISPATCHED no se reasigna ni se cancela el servicio: el operador registra llegada, carga, traslado y entrega. Se conservan el origen, el destino y los datos declarados.
 
-### 5.9 Ejecución y demoras
+### 5.9 Ejecución del servicio
 
 El operador asignado declara salida, llegada, carga, inicio de traslado y entrega/descarga, en ese orden. La entrega requiere nota y una asignación vigente; el administrador no puede registrarla en nombre del operador.
 
-La llegada prevista se calcula al despachar como dispatchedAt más aproximación ajustada y margen. Superar las estimaciones de llegada, carga o traslado más 900 s genera un registro informativo único por etapa y asignación. No se suspende, cancela ni libera un servicio por superar una estimación. El registro se cierra automáticamente al completar la etapa o cerrar la asignación. No existe plazo real de tres horas ni una bandeja de evaluación humana.
+Las fechas de salida, llegada, carga, inicio de traslado y entrega se conservan en el historial. No existe un temporizador que complete el servicio: la entrega requiere declaración del operador asignado.
 
 ### 5.10 Cancelación y cierres automáticos
 
@@ -294,11 +292,11 @@ El conductor solo puede cancelar antes de que exista una primera confirmación d
 
 La carrera entre aceptación y cancelación se serializa en Assistance. Si ya se envió una confirmación a Fleet y su resultado es incierto, la cancelación devuelve 409 ACCEPTANCE_CONFIRMATION_PENDING y primero se reconcilia. Si Fleet confirmó, se conserva ASSIGNED aunque la respuesta original se haya perdido. Si no confirmó, puede procesarse la cancelación. Al admitirla se impiden confirmaciones posteriores y se libera cualquier retención pendiente.
 
-No existen peticiones de cancelación, autorización administrativa de cancelación, corrección de datos durante el servicio, suspensión pendiente de decisión ni cierre excepcional con custodia. UNFULFILLED solo se admite antes del despacho. Después del despacho se conserva la asignación hasta la entrega y liberación; ninguna demora produce un cierre automático.
+No existen peticiones de cancelación, autorización administrativa de cancelación, corrección de datos durante el servicio, suspensión pendiente de decisión ni cierre excepcional con custodia. UNFULFILLED solo se admite antes del despacho. Después del despacho se conserva la asignación hasta la entrega y liberación.
 
 ### 5.11 Validación de entradas
 
-Descripción de solicitud: 10 a 1.000 caracteres. Motivos de rechazo/cancelación y nota de entrega: 10 a 500 caracteres. Los registros de demora son generados por el sistema; no se reciben reportes operativos ni resoluciones humanas.
+Descripción de solicitud: 10 a 1.000 caracteres. Motivos de rechazo/cancelación y nota de entrega: 10 a 500 caracteres.
 
 La creación exige Idempotency-Key de hasta 100 caracteres, única por conductor y conservada con la solicitud. No se admite estado, propietario o grúa elegida arbitrariamente en la entrada. Una solicitud terminal no se reabre; la creación de otra requiere ausencia de compromisos anteriores inciertos o pendientes sobre el vehículo.
 
@@ -339,19 +337,8 @@ Cada transición registra estado anterior/nuevo, instante, actor y motivo. Las a
 | Ocupación | FREE, HELD, ASSIGNED | Derivada de reservas activas |
 | Reserva Fleet | HELD, CONFIRMED, RELEASED, EXPIRED | Retención y compromiso exclusivo |
 | Propuesta/asignación | RESERVATION_PENDING, RESERVATION_FAILED, PROPOSED, ACCEPTED, REJECTED, EXPIRED, CANCELLED, CLOSED | Historial de cada intento |
-| Registro de demora | OPEN, RESOLVED | Informativo; apertura y cierre automáticos |
 
 Fleet aplica HELD → CONFIRMED/RELEASED/EXPIRED y CONFIRMED → RELEASED. Las confirmadas no vencen automáticamente. PROPOSED puede terminar REJECTED, EXPIRED o CANCELLED. Una asignación ACCEPTED pasa a CLOSED al finalizar normalmente o al ser reemplazada antes del despacho. Liberar una reserva no cambia el estado operativo del equipo.
-
-### 6.3 Demoras informativas automáticas
-
-| Tipo | Detección | Tratamiento |
-|---|---|---|
-| DELAYED_ARRIVAL | Job al superar tolerancia de llegada | Registro informativo; cierre al llegar o terminar asignación |
-| LOADING_DELAY | Job al superar tolerancia de carga | Registro informativo; cierre al cargar o terminar asignación |
-| TRANSPORT_DELAY | Job al superar tolerancia de traslado | Registro informativo; cierre al entregar o terminar asignación |
-
-Se conserva Incident como entidad de demoras informativas, con estados OPEN y RESOLVED. SYSTEM abre un registro por asignación y etapa y lo cierra al completar la etapa. No altera el estado de la solicitud ni requiere acción humana. No existen endpoints para crear o resolver estos registros.
 
 ## 7. Procesos colaborativos
 
@@ -372,7 +359,7 @@ Fleet conserva la autoridad sobre disponibilidad y Assistance sobre el resultado
 
 Si vence el plazo de despacho o no se confirma elegibilidad para despachar, Assistance cierra la asignación con motivo y conserva firstAssignedAt. Persiste RELEASE, consulta Fleet ante respuestas perdidas y espera confirmación de liberación antes de intentar reservar otra pareja.
 
-Si queda cupo se abre automáticamente la siguiente búsqueda con origen y destino originales; de lo contrario se termina UNFULFILLED. El conductor no recupera el permiso de cancelar. Tras DISPATCHED solo continúa la secuencia de ejecución; los registros de demora no habilitan sustituciones.
+Si queda cupo se abre automáticamente la siguiente búsqueda con origen y destino originales; de lo contrario se termina UNFULFILLED. El conductor no recupera el permiso de cancelar. Tras DISPATCHED solo continúa la secuencia de ejecución.
 
 ## 8. Integración externa
 
@@ -416,7 +403,7 @@ Una solicitud cerrada con liberación pendiente expone resourceReleasePending. L
 
 Se realiza una llamada por intento y no se repiten escrituras inmediatamente. Toda escritura reintentada debe contar con identificación idempotente. HTTP 429 respeta Retry-After. Un 401/403 técnico requiere corregir credenciales/permisos y no debe generar una secuencia de reintentos indiscriminada. Los conflictos de dominio se distinguen de fallas de red.
 
-Reconciliación, vencimientos, evaluaciones y demoras se ejecutan mediante tareas programadas. Los endpoints aplican también las condiciones temporales; no dependen de que una tarea haya corrido exactamente en el instante de vencimiento. Se contempla una instancia ejecutable por servicio; la coordinación de múltiples réplicas queda fuera del MVP.
+Reconciliación, vencimientos y evaluaciones se ejecutan mediante tareas programadas. Los endpoints aplican también las condiciones temporales; no dependen de que una tarea haya corrido exactamente en el instante de vencimiento. Se contempla una instancia ejecutable por servicio; la coordinación de múltiples réplicas queda fuera del MVP.
 
 ## 10. Identidad, autenticación y autorización
 
@@ -474,11 +461,10 @@ La siguiente tabla define los registros lógicos; los tipos, longitudes y restri
 |---|---|---|
 | Assistance | Vehicle / vehicles | ID, propietario subject, patente normalizada, marca/modelo, tipo, peso, estado de registro, fechas y versión |
 | Assistance | AssistanceRequest / assistance_requests | Vehículo, conductor, estado, origen/destino originales, origen y destino originales, datos declarados inmutables, firstAssignedAt, intento/plazos, versión y snapshot de reglas, idempotencia/huella y motivo de cierre |
-| Assistance | Assignment / assignments | Intento único, solicitud, candidato evaluado, IDs externos de recursos/reserva, subject del operador, estado, reserva/propuesta/aceptación/despacho y cierre; llegada planificada |
+| Assistance | Assignment / assignments | Intento único, solicitud, candidato evaluado, IDs externos de recursos/reserva, subject del operador, estado, reserva/propuesta/aceptación/despacho y cierre |
 | Assistance | Evaluation / evaluations | Solicitud/intento/revisión, datos del vehículo, coordenadas usadas, parámetros efectivos, resultado/motivos y fecha de evaluación/obtención de ruta |
 | Assistance | CandidateEvaluation / candidate_evaluations | Recursos externos, capacidad/compatibilidades, habilitación usada, ubicación/fecha, resultados de cobertura/elegibilidad, rutas crudas y ajustadas, ranking y fin estimado |
 | Assistance | RequestStatusHistory / request_status_history | Solicitud, estado anterior/nuevo, actor, fecha, motivo, detalles, claves de operación y cambios de revisión/intento |
-| Assistance | Incident / incidents | Solicitud/asignación, tipo de demora, etapa, fechas de apertura/cierre, estado y clave de deduplicación; generación automática |
 | Assistance | PendingFleetAction / pending_fleet_actions | Operación idempotente, solicitud/asignación, tipo, datos explícitos de recursos y snapshot necesario, estado, reintentos, próximos intentos y resultado/error |
 | Fleet | Operator / operators | Subject único, nombre/contacto, estados de registro/disponibilidad, habilitación vigente, tiempo libre, fechas y versión |
 | Fleet | TowTruck / tow_trucks | Patente única, operador actual único/opcional, capacidad, compatibilidad de movilidad, estado operativo, coordenadas y fecha/versión |
@@ -496,7 +482,7 @@ Se utilizan Jakarta Persistence, constructor sin argumentos, @Entity, @Id, @Colu
 
 Los repositorios extienden JpaRepository. Las consultas usan métodos derivados o JPQL parametrizado; SQL específico se reserva para restricciones o necesidades justificadas. No se serializan entidades directamente ni se propaga borrado hacia auditoría mediante cascade REMOVE.
 
-Se aplican NOT NULL, FK locales, unicidad de patentes/subjects/intentos/claves y CHECK de pesos, coordenadas y fechas. Los índices cubren consultas por propietario/estado/fecha, operador/estado, historial por solicitud, reservas por vencimiento y acciones por próximo intento. Las reglas de exclusividad y registros informativos únicos por etapa se protegen mediante control transaccional sobre la solicitud o recursos.
+Se aplican NOT NULL, FK locales, unicidad de patentes/subjects/intentos/claves y CHECK de pesos, coordenadas y fechas. Los índices cubren consultas por propietario/estado/fecha, operador/estado, historial por solicitud, reservas por vencimiento y acciones por próximo intento. Las reglas de exclusividad y transiciones válidas por asignación se protegen mediante control transaccional sobre la solicitud o recursos.
 
 ### 11.4 Esquema y evolución
 
@@ -522,7 +508,7 @@ Las rutas son relativas a `/api/v1`. A = Assistance; F = Fleet. ADMIN posee cons
 | PATCH /vehicles/{id}/registration-status | A | DRIVER: activar/desactivar propios sin compromiso activo |
 | POST /assistance-requests | A | DRIVER: crear solicitud propia y disparar evaluación |
 | GET /assistance-requests; GET /assistance-requests/{id} | A | DRIVER propias; OPERATOR vinculadas a sus asignaciones; ADMIN consulta global |
-| GET /assistance-requests/{id}/history; GET /assistance-requests/{id}/incidents | A | Mismos límites de propiedad/asignación; ADMIN global; filtrar datos personales innecesarios |
+| GET /assistance-requests/{id}/history | A | Mismos límites de propiedad/asignación; ADMIN global; filtrar datos personales innecesarios |
 | POST /assistance-requests/{id}/cancellations | A | DRIVER propietario: cancelar solo antes de la primera aceptación; 409 si hubo asignación o confirmación incierta |
 | GET /operators/me; PATCH /operators/me/availability | F | OPERATOR: perfil propio y disponibilidad sin compromiso activo |
 | GET /tow-trucks/assigned-to-me; PUT /tow-trucks/assigned-to-me/location | F | OPERATOR: consultar equipo vinculado y actualizar su ubicación |
@@ -533,7 +519,6 @@ Las rutas son relativas a `/api/v1`. A = Assistance; F = Fleet. ADMIN posee cons
 | POST /assistance-requests/{id}/loading | A | OPERATOR asignado: declarar carga |
 | POST /assistance-requests/{id}/transport-start | A | OPERATOR asignado: declarar inicio de traslado |
 | POST /assistance-requests/{id}/completion | A | OPERATOR asignado: confirmar entrega/descarga y gestionar liberación |
-| GET /incidents; GET /incidents/{id} | A | ADMIN: consultar incidencias y resultados automáticos |
 | GET /operators; GET /operators/{id}; GET /tow-trucks; GET /tow-trucks/{id} | F | ADMIN: consultar catálogo global y capacidades |
 | POST /operators; PATCH /operators/{id}; PATCH /operators/{id}/registration-status | F | ADMIN: administrar perfil de subject existente; cambios solo sin compromiso activo |
 | PUT /operators/{id}/qualification | F | ADMIN: registrar/renovar habilitación solo sin compromiso activo |
@@ -542,7 +527,7 @@ Las rutas son relativas a `/api/v1`. A = Assistance; F = Fleet. ADMIN posee cons
 | PATCH /tow-trucks/{id}/operational-status | F | ADMIN: administrar equipo libre, activar, pasar a mantenimiento o inactivar con motivo; no interrumpir servicios activos |
 | GET /configuration/assistance; GET /configuration/fleet | A / F | ADMIN: consultar parámetros efectivos sin secretos; sin edición por API |
 
-No se implementan rutas públicas de resolución de incidencias, reasignación manual, cancelación administrativa, petición de cancelación ni corrección de datos declarados. Tampoco hay edición libre del estado de una solicitud. La gestión de usuarios, contraseñas y roles pertenece a la consola de Keycloak; no se agrega un CRUD propio de identidad.
+No se implementan rutas públicas de reasignación manual, cancelación administrativa, petición de cancelación ni corrección de datos declarados. Tampoco hay edición libre del estado de una solicitud. La gestión de usuarios, contraseñas y roles pertenece a la consola de Keycloak; no se agrega un CRUD propio de identidad.
 
 ### 12.3 Contrato interno de Fleet
 
@@ -595,7 +580,7 @@ Se incluyen logs básicos con SLF4J/Logback, versiones administradas por Boot y 
 | Aplicación | Eventos |
 |---|---|
 | Gateway | Método, ruta normalizada, código, duración y fallos de acceso/enrutamiento |
-| Assistance | Creación, decisiones de evaluación, propuestas, transiciones, cancelaciones, incidencias, reasignación y recuperación |
+| Assistance | Creación, decisiones de evaluación, propuestas, transiciones, cancelaciones, reasignación y recuperación |
 | Fleet | Reservas, confirmaciones, liberaciones, vencimientos, conflictos, cambios de equipo y administración relevante |
 | Cliente de rutas | Operación, resultado o tipo de error y duración, sin URL/cuerpo sensible |
 
@@ -671,7 +656,7 @@ BACK-TPI-G1/
 └── .env.example                    [por construir]
 ```
 
-El C1 representa actores, sistema e integraciones externas; el C2, contenedores, tecnologías y comunicaciones. La fuente vigente es [C1 y C2](diagramas/AuxiRuta_C1_C2.md); los PNG anteriores son históricos y no describen AR-MVP-4. Los diagramas deben verificarse contra el despliegue final. La biblioteca se representa como dependencia, no contenedor. Los scripts shell se guardan con LF y los archivos de compilación/secretos se excluyen de Git.
+El C1 representa actores, sistema e integraciones externas; el C2, contenedores, tecnologías y comunicaciones. La fuente vigente es [C1 y C2](diagramas/AuxiRuta_C1_C2.md); los PNG anteriores son históricos y no describen AR-MVP-5. Los diagramas deben verificarse contra el despliegue final. La biblioteca se representa como dependencia, no contenedor. Los scripts shell se guardan con LF y los archivos de compilación/secretos se excluyen de Git.
 
 ## 16. Correspondencia con los requisitos mínimos del TPI
 
@@ -746,7 +731,6 @@ Los tests automatizados pueden aportar evidencia cuando sean útiles; no se pres
 | Hibernate | Implementación ORM que materializa operaciones JPA sobre la base |
 | Idempotencia | Repetición controlada de una operación sin duplicar sus efectos |
 | Identity Provider / IdP | Proveedor de identidad; Keycloak en esta arquitectura |
-| Registro de demora | Observación informativa generada y cerrada automáticamente para una etapa de una asignación |
 | Inyección de dependencias | Provisión externa de colaboradores de una clase; se aplica mediante constructores |
 | Issuer / iss | Emisor esperado de un token, verificado exactamente al validarlo |
 | JAR común | Biblioteca Java empaquetada y consumida como dependencia Maven |
@@ -796,5 +780,7 @@ Los tests automatizados pueden aportar evidencia cuando sean útiles; no se pres
 | 2.1 | 2026-11-04 | AR-MVP-3: se excluyen averías durante IN_TRANSIT; sustituciones solo antes del traslado, origen inmutable, eliminación del retiro alternativo y actualización de estados, contratos, persistencia, parámetros y casos de aceptación |
 
 | 2.2 | 2026-11-04 | AR-MVP-4: simplificación del flujo operativo, ejecución continua desde DISPATCHED, búsquedas alternativas solo anteriores al despacho, alta administrada de operadores y sincronización integral del alcance |
+
+| 2.3 | 2026-11-04 | AR-MVP-5: eliminación de la detección automática de demoras, sus registros, endpoints, entidad y parámetros; conservación del historial de etapas con sus fechas |
 
 Toda revisión posterior debe agregar una entrada y precisar las secciones afectadas. Antes de declarar una capacidad implementada se deben registrar su evidencia y verificación. Las versiones exactas del entorno Java/Docker, la configuración efectiva de Keycloak, los contratos OpenAPI, las restricciones SQL y las cuotas del proveedor se completarán durante la construcción sin modificar silenciosamente esta línea base.
