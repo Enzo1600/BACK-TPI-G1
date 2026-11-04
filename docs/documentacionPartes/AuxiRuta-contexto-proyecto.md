@@ -6,7 +6,7 @@ Este documento cumple el mismo propósito que el archivo de contexto de SkyClear
 
 ## Documentos de referencia y precedencia
 
-Los archivos actuales están entregados junto a este documento. Al crear el repositorio se copiarán a docs/ conservando sus nombres, salvo que el equipo haga un renombrado explícito y actualice las referencias.
+La documentación actual está en docs/documentacionPartes/, junto a este archivo. Las imágenes C1 y C2 están en docs/diagramas/. Las referencias a documentos de esta tabla se resuelven dentro de documentacionPartes; los enlaces del README parten de la raíz del repositorio.
 
 | Documento actual | Contenido |
 |---|---|
@@ -18,9 +18,9 @@ Los archivos actuales están entregados junto a este documento. Al crear el repo
 | AuxiRuta-modelo-persistente-MVP.md | Entidades, tablas y precisiones de AR-MVP-1 |
 | AuxiRuta-logging-basico.md | Logging básico incorporado por decisión del equipo |
 
-Precedencia por responsabilidad: AR-MVP-1 determina el negocio; este archivo fija nombres, puertos y organización técnica; el documento de operaciones define el contrato propuesto hasta que se escriba OpenAPI. El YAML de parámetros debe coincidir con AR-MVP-1. Un resumen no puede cambiar una regla silenciosamente.
+Referencia consolidada vigente: [DECISIONES_ARQUITECTONICAS.md](../DECISIONES_ARQUITECTONICAS.md). Sus decisiones prevalecen ante contradicciones con estos documentos parciales. Este archivo se conserva como guía de contexto auxiliar; el YAML de parámetros y los contratos deben mantenerse alineados con la especificación consolidada.
 
-Los contratos OpenAPI y diagramas todavía deben construirse. Al existir, deben representar las operaciones implementadas y estas decisiones. Una discrepancia se resuelve actualizando explícitamente diseño, contrato o implementación, sin inventar una funcionalidad para taparla.
+Los contratos OpenAPI todavía deben construirse. Ya existen imágenes C1 y C2; deben revisarse y mantenerse alineadas con las operaciones y decisiones del proyecto. Una discrepancia se resuelve actualizando explícitamente diseño, contrato o implementación, sin inventar una funcionalidad para taparla.
 
 ## 1. Nombre y coordenadas Maven
 
@@ -102,14 +102,17 @@ auxiruta/
 │   │   └── fleet-schema.sql
 │   └── keycloak/realm-auxiruta.json
 ├── docs/
-│   ├── AuxiRuta-contexto-proyecto.md
-│   ├── AuxiRuta-reglas-de-negocio-MVP.md
-│   ├── AuxiRuta-parametros-MVP.yml
-│   ├── ...otros documentos actuales
-│   ├── api/
+│   ├── documentacionPartes/
+│   │   ├── AuxiRuta-contexto-proyecto.md
+│   │   ├── AuxiRuta-reglas-de-negocio-MVP.md
+│   │   ├── AuxiRuta-parametros-MVP.yml
+│   │   └── ...otros documentos actuales
+│   ├── api/                           [pendiente]
 │   │   ├── fleet-service.yaml          [pendiente]
 │   │   └── assistance-service.yaml     [pendiente]
-│   └── diagramas/                      [pendiente]
+│   └── diagramas/
+│       ├── AuxiRuta_C1.png
+│       └── AuxiRuta_C2.png
 ├── auxiruta-commons/
 │   ├── pom.xml
 │   └── src/
@@ -314,7 +317,8 @@ El ejemplo de SkyClear se utiliza como referencia de organización. Sus instrucc
 - [x] Modelo persistente propuesto, con ajustes por reglas fijas.
 - [x] Decisiones técnicas de este documento preparadas para implementar.
 - [ ] Construir contratos OpenAPI de ambos servicios y revisarlos contra las reglas.
-- [ ] Dibujar C1, C2 y modelo de datos acorde con el diseño final.
+- [x] Archivos C1 y C2 disponibles en docs/diagramas/.
+- [ ] Revisar su correspondencia con el diseño final y completar el diagrama de datos.
 - [ ] Crear los proyectos Maven y comprobar resolución de dependencias/versiones.
 - [ ] Implementar auxiruta-commons e instalarlo en .m2.
 - [ ] Preparar PostgreSQL, SQL de inicialización y realm de Keycloak; verificar emisión/validación de JWT con emisor y audiencias.
