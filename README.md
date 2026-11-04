@@ -2,7 +2,7 @@
 
 Repositorio del Grupo 1 para el Trabajo Práctico Integrador 2026.
 
-AuxiRuta coordina solicitudes de asistencia y remolque de vehículos livianos: evalúa compatibilidad y recorridos, reserva una grúa y gestiona el servicio y las sustituciones por avería de forma automática.
+AuxiRuta coordina solicitudes de asistencia y remolque de vehículos livianos: evalúa compatibilidad y recorridos, reserva una grúa y gestiona su ciclo de vida.
 
 ## Documentación vigente
 
@@ -15,14 +15,14 @@ Documento principal: **[Decisiones arquitectónicas](docs/DECISIONES_ARQUITECTON
 |---|---|
 | [Contexto del proyecto](docs/documentacionPartes/AuxiRuta-contexto-proyecto.md) | Nombres, versiones propuestas, dependencias, seguridad, puertos y próximos pasos |
 | [Resumen del dominio](docs/documentacionPartes/AuxiRuta.md) | Alcance, actores y división en microservicios |
-| [Reglas de negocio AR-MVP-3](docs/documentacionPartes/AuxiRuta-reglas-de-negocio-MVP.md) | Restricciones fijas, cobertura, distancias, plazos y casos de borde |
+| [Reglas de negocio AR-MVP-4](docs/documentacionPartes/AuxiRuta-reglas-de-negocio-MVP.md) | Restricciones fijas, cobertura, distancias, plazos y casos de borde |
 | [Parámetros del MVP](docs/documentacionPartes/AuxiRuta-parametros-MVP.yml) | Valores de referencia para configurar los servicios |
-| [Estados y transiciones](docs/documentacionPartes/AuxiRuta-estados-y-transiciones.md) | Solicitud, vehículo, grúa, reserva e incidencia |
+| [Estados y transiciones](docs/documentacionPartes/AuxiRuta-estados-y-transiciones.md) | Solicitud, vehículo, grúa, reserva y demoras |
 | [Operaciones por rol y alcance](docs/documentacionPartes/AuxiRuta-operaciones-por-rol-y-alcance-MVP.md) | Endpoints propuestos, permisos y funcionalidades incluidas/excluidas |
-| [Modelo persistente](docs/documentacionPartes/AuxiRuta-modelo-persistente-MVP.md) | Entidades y tablas; incluye ajustes por las reglas AR-MVP-3 |
+| [Modelo persistente](docs/documentacionPartes/AuxiRuta-modelo-persistente-MVP.md) | Entidades y tablas; incluye ajustes por las reglas AR-MVP-4 |
 | [Logging básico](docs/documentacionPartes/AuxiRuta-logging-basico.md) | Eventos, niveles, protección de datos y retención de logs |
 
-DECISIONES_ARQUITECTONICAS.md constituye la referencia consolidada vigente. Los documentos parciales se conservan como material de detalle; ante contradicciones prevalece la especificación consolidada. Los parámetros deben coincidir con la línea base AR-MVP-3 allí definida.
+DECISIONES_ARQUITECTONICAS.md constituye la referencia consolidada vigente. Los documentos parciales se conservan como material de detalle; ante contradicciones prevalece la especificación consolidada. Los parámetros deben coincidir con la línea base AR-MVP-4 allí definida.
 
 ## Decisiones actuales
 
@@ -31,8 +31,9 @@ DECISIONES_ARQUITECTONICAS.md constituye la referencia consolidada vigente. Los 
 - Una instancia PostgreSQL con tres bases separadas: `assistance_db`, `fleet_db` y `keycloak_db`.
 - OpenRouteService como API externa para distancias y tiempos estimados de recorrido.
 - Logging básico incluido por decisión del equipo; monitoreo avanzado opcional.
+- Una única empresa administra el alta de operadores, sus habilitaciones y su vínculo con una grúa. No hay registro libre de prestadores.
 - Roles humanos: DRIVER, OPERATOR y ADMIN. ADMIN administra recursos y consulta; no interviene en decisiones de asistencia.
-- Cancelación por el conductor solo antes de la primera aceptación; sustitución automática por avería solo antes de IN_TRANSIT, con dos reasignaciones como máximo.
+- Cancelación por el conductor solo antes de la primera aceptación. Búsquedas alternativas automáticas antes del despacho, con dos reasignaciones como máximo.
 - Datos correctos, vehículo accesible, destino disponible y continuidad personal del operador asumidos.
 - Notificaciones a usuarios fuera del alcance por ahora.
 

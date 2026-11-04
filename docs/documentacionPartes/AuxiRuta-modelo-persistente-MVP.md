@@ -1,12 +1,12 @@
 # AuxiRuta — Modelo persistente del MVP
 
-> Línea base vigente: **AR-MVP-3**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
+> Línea base vigente: **AR-MVP-4**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
 
 ## 1. Alcance del modelo
 
 El modelo comprende ocho entidades de Assistance, cuatro de Fleet y una tabla auxiliar de tipos de vehículo admitidos. Keycloak administra su propio esquema. Se conserva trazabilidad de evaluaciones, reservas y recuperación de operaciones. Los snapshots son columnas, la habilitación actual pertenece a Operator, el vínculo actual pertenece a TowTruck y los parámetros se distribuyen mediante configuración.
 
-La cancelación previa a primera aceptación se registra en AssistanceRequest e historial; no tiene entidad de petición o autorización. Las incidencias solo representan averías y demoras con tratamiento automático. No hay campos de custodia, responsable humano de resolución ni estado suspendido.
+La cancelación previa a primera aceptación se registra en AssistanceRequest e historial; no tiene entidad de petición o autorización. Incident representa exclusivamente demoras informativas generadas por el sistema. No hay campos de custodia, responsable humano de resolución ni estado suspendido.
 
 ## 2. Forma de implementar persistencia
 
@@ -76,7 +76,7 @@ version BIGINT NOT NULL
 UNIQUE(driver_subject, idempotency_key)
 ```
 
-Los datos del vehículo se copian al crear y no se corrigen durante el servicio. first_assigned_at se fija con la primera confirmación durable de Fleet y nunca se borra al reasignar. El retiro siempre coincide con el origen original, también después de una avería anterior a IN_TRANSIT; no se requieren columnas de retiro alternativo. No se modelan averías durante el traslado. La última ubicación conocida se actualiza con hechos declarados (llegada, carga, avería o entrega), sin GPS continuo. request_fingerprint distingue reintentos de creación incompatibles.
+Los datos del vehículo se copian al crear y no se corrigen durante el servicio. first_assigned_at se fija con la primera confirmación durable de Fleet y nunca se borra al reasignar. El retiro siempre coincide con el origen original; no existen ubicaciones alternativas. La última ubicación conocida se actualiza con hechos declarados (llegada, carga o entrega), sin GPS continuo. request_fingerprint distingue reintentos de creación incompatibles.
 
 No es necesario guardar resourceReleasePending como otra verdad duplicada: la respuesta puede calcularlo desde las acciones de liberación pendientes.
 
@@ -101,7 +101,7 @@ end_reason TEXT NULL
 version BIGINT NOT NULL
 ```
 
-Estados: RESERVATION_PENDING → PROPOSED → ACCEPTED → CLOSED/CANCELLED. Una reserva en conflicto puede terminar RESERVATION_FAILED; una propuesta puede terminar REJECTED, EXPIRED o CANCELLED. Una asignación aceptada queda CANCELLED por avería, con end_reason BREAKDOWN; la solicitud sigue su búsqueda automática. RESERVATION_PENDING evita perder el rastro si Fleet reserva pero se pierde la respuesta. La solicitud permanece en su etapa de evaluación/búsqueda hasta que la reserva se confirme y pasa entonces a AWAITING_ACCEPTANCE.
+Estados: RESERVATION_PENDING → PROPOSED → ACCEPTED → CLOSED. Una reserva en conflicto puede terminar RESERVATION_FAILED; una propuesta puede terminar REJECTED, EXPIRED o CANCELLED. Una asignación aceptada termina CLOSED al completar el servicio o sustituirse antes del despacho. RESERVATION_PENDING evita perder el rastro si Fleet reserva pero se pierde la respuesta. La solicitud permanece en su etapa de evaluación/búsqueda hasta que la reserva se confirme y pasa entonces a AWAITING_ACCEPTANCE.
 
 ### Evaluation → evaluations
 
@@ -173,31 +173,26 @@ correlation_id VARCHAR NULL
 occurred_at TIMESTAMPTZ NOT NULL
 ```
 
-details conserva aperturas de búsqueda, plazos, averías y puntos de recuperación; las acciones automáticas utilizan actor_type SYSTEM y actor_subject NULL. La creación registra previous_status NULL. Los logs técnicos no reemplazan estas filas de auditoría funcional.
+details conserva aperturas de búsqueda y plazos; las acciones automáticas utilizan actor_type SYSTEM y actor_subject NULL. La creación registra previous_status NULL. Los logs técnicos no reemplazan la auditoría funcional.
 
 ### Incident → incidents
+
+Registro informativo de demora; no es un reporte operativo ni una decisión pendiente.
 
 ```text
 id UUID PK
 request_id UUID FK → assistance_requests NOT NULL
 assignment_id UUID FK → assignments NOT NULL
 type VARCHAR NOT NULL
-description TEXT NOT NULL
+stage VARCHAR NOT NULL
 status VARCHAR NOT NULL
-request_status_at_report VARCHAR NOT NULL
-reported_by_subject VARCHAR NULL
-reporter_type VARCHAR NOT NULL
-reported_at TIMESTAMPTZ NOT NULL
-breakdown_latitude DECIMAL NULL
-breakdown_longitude DECIMAL NULL
-automatic_result VARCHAR NULL
+opened_at TIMESTAMPTZ NOT NULL
 resolved_at TIMESTAMPTZ NULL
 generated_key VARCHAR UNIQUE NOT NULL
-operation_key VARCHAR UNIQUE NULL
 version BIGINT NOT NULL
 ```
 
-Tipos: TOW_TRUCK_BREAKDOWN, DELAYED_ARRIVAL, LOADING_DELAY y TRANSPORT_DELAY. Estado PROCESSING/RESOLVED. Los resultados los determina SYSTEM, sin endpoint de resolución. Una avería exige coordenadas; las demoras son generadas por tareas y no requieren subject humano. generated_key deduplica tipo/asignación; una única recuperación por solicitud se protege transaccionalmente.
+Tipos DELAYED_ARRIVAL, LOADING_DELAY y TRANSPORT_DELAY. Estados OPEN/RESOLVED. SYSTEM genera y cierra los registros. generated_key deduplica asignación/tipo. No existe endpoint para crearlos o resolverlos manualmente.
 
 ### PendingFleetAction → pending_fleet_actions
 
@@ -212,7 +207,6 @@ action_type VARCHAR NOT NULL
 tow_truck_id UUID NOT NULL
 operator_id UUID NULL
 estimated_service_end_at TIMESTAMPTZ NULL
-incident_id UUID FK → incidents NULL
 reason TEXT NULL
 status VARCHAR NOT NULL
 attempt_count INTEGER NOT NULL
@@ -224,7 +218,7 @@ completed_at TIMESTAMPTZ NULL
 version BIGINT NOT NULL
 ```
 
-action_type: RESERVE, CONFIRM, RELEASE o MARK_OUT_OF_SERVICE. Los campos obligatorios dependen de la acción y se validan. Estado PENDING, COMPLETED o RETRYING; los efectos inciertos se reconcilian automáticamente sin descartarse ni exigir aprobación humana. Las dependencias entre acciones se resuelven con reglas explícitas: primero marcar avería y liberar; luego buscar otra grúa. No se confirma una reserva tras cancelar su solicitud.
+action_type: RESERVE, CONFIRM o RELEASE. Los campos obligatorios dependen de la acción y se validan. Estado PENDING, COMPLETED o RETRYING; los efectos inciertos se reconcilian automáticamente sin descartarse ni exigir aprobación humana. Una nueva reserva requiere liberación confirmada del compromiso anterior. No se confirma una reserva tras cancelar su solicitud.
 
 Se guarda la intención en una transacción local, se llama a Fleet fuera de ella y se confirma el resultado en otra transacción. La tarea consulta resultados ante respuestas perdidas. Un reinicio no puede perder una reserva creada después de cancelarse: antes de cerrar la recuperación se consulta/libera el intento idempotente correspondiente.
 
@@ -316,7 +310,7 @@ correlation_id VARCHAR NULL
 changed_at TIMESTAMPTZ NOT NULL
 ```
 
-operation_key deduplica la comunicación de avería desde Assistance incluso si una respuesta se pierde. Una repetición no vuelve a crear el cambio ni reabre una avería resuelta después; se devuelve el resultado de esa operación ya registrada.
+operation_key deduplica cambios administrativos de estado operativo. Ningún cambio se aplica sobre un equipo con reserva activa.
 
 ## 5. Consistencia y restricciones
 
@@ -324,7 +318,7 @@ operation_key deduplica la comunicación de avería desde Assistance incluso si 
 - Reservar requiere una transacción local: bloquear operador y grúa en orden fijo, revalidar datos, comprobar ausencia de reservas activas e insertar. Todos los caminos que reservan/confirman/liberan deben respetar el mismo protocolo.
 - La exclusividad puede reforzarse mediante índices únicos parciales PostgreSQL por recurso para HELD/CONFIRMED; no es una característica portable generada por @UniqueConstraint.
 - Para crear una solicitud se bloquea su Vehicle y se verifica ausencia de otra activa dentro de la misma transacción. Puede reforzarse con índice parcial. El patrón consultar y luego guardar sin control no basta.
-- Una sola recuperación de avería PROCESSING por solicitud; bloqueo/versionado e idempotencia impiden duplicar reasignaciones. Cancelación y primera aceptación comparten control transaccional; una confirmación remota incierta bloquea cancelar hasta reconciliar.
+- Un registro informativo por asignación/tipo; bloqueo e idempotencia evitan duplicados. Cancelación y primera aceptación comparten control transaccional; una confirmación incierta bloquea cancelar hasta reconciliar.
 - CHECK para pesos/capacidades positivos, coordenadas válidas y fechas coherentes; NOT NULL, FK, UNIQUE y longitudes explícitos.
 - Índices de consulta: solicitud por driver/status/fecha, asignación por operator/status, historial por request/fecha, reserva por status/expires_at, acciones pendientes por status/next_attempt_at.
 - Las transacciones no mantienen bloqueos mientras se espera una respuesta HTTP. @Transactional coordina una base local; no hace rollback de una llamada remota que ya tuvo éxito.
@@ -349,7 +343,7 @@ Evaluation → AssistanceRequest
 CandidateEvaluation → Evaluation
 RequestStatusHistory → AssistanceRequest
 Incident → AssistanceRequest, Assignment
-PendingFleetAction → AssistanceRequest, Assignment, Incident opcional
+PendingFleetAction → AssistanceRequest, Assignment
 
 FLEET
 TowTruck → Operator opcional, único
@@ -359,16 +353,16 @@ TruckStatusHistory → TowTruck
 
 Las flechas representan referencias locales N→1. Las reservas apuntan por ID externo a la solicitud y Assistance apunta por IDs externos a Fleet. Keycloak no tiene FKs hacia ninguna base funcional.
 
-## 8. Ajustes necesarios por las reglas fijas AR-MVP-3
+## 8. Ajustes necesarios por las reglas fijas AR-MVP-4
 
 - Vehicle incorpora brand/model y restricciones de tipo, patente y peso.
 - AssistanceRequest conserva first_assigned_at, origen original como retiro, última ubicación y cierre. El origen/destino y snapshot de vehículo son inmutables. search_attempt_number admite 1..3; cada apertura registra plazo en historial. Se conserva snapshot de parámetros, no solo su versión.
 - Assignment persiste antes del HTTP; accepted_at procede de confirmed_at durable. Incorporar reserved_at, dispatched_at, arrived_at, loaded_at, transport_started_at, completed_at y planned_arrival_at. Cada sustitución conserva las fechas del intento previo. La primera aceptación se copia a la solicitud una sola vez.
 - Evaluation conserva coordenadas del retiro vigente y destino, reglas, ruta y route_obtained_at. CandidateEvaluation conserva valores crudos/ajustados y fecha de ubicación. El resultado de recuperación distingue ruta imposible de dependencia temporal.
 - ResourceReservation incluye search_deadline_at y hold_seconds_requested; expires_at se calcula en Fleet con el menor plazo. La confirmación durable no se convierte en vencida por recuperar tarde su respuesta.
-- Incident no almacena responsable de decisión, custodia ni datos de corrección. Su estado es técnico/automático, no una aprobación pendiente.
+- Incident solo conserva demora, etapa, fechas y clave de deduplicación; no contiene reportante humano, coordenadas de eventos ni resolución manual.
 - Historial incluye operation_key única en su ámbito y la etapa/ubicación al cerrar UNFULFILLED después de una ejecución iniciada.
-- PendingFleetAction mantiene explícitos los datos de compatibilidad, ruta, plazo y operación. Se confirma MARK_OUT_OF_SERVICE y RELEASE antes de reservar reemplazo; la nueva búsqueda comienza después de esa limpieza.
-- Un estado terminal no elimina tareas ni habilita nueva solicitud sobre el vehículo mientras existan efectos inciertos. La liberación no reactiva la grúa.
+- PendingFleetAction mantiene explícitos los datos de compatibilidad, ruta, plazo y operación. Se confirma RELEASE antes de reservar otro recurso; la nueva búsqueda comienza después de esa limpieza.
+- Un estado terminal no elimina tareas ni habilita nueva solicitud sobre el vehículo mientras existan efectos inciertos. La liberación no modifica el estado operativo de la grúa.
 
 No se crean tablas para peticiones de cancelación, suspensiones, custodia, decisiones humanas ni roles. El DDL definitivo debe concretar nulos, longitudes, checks e índices de estas reglas antes de implementarse.

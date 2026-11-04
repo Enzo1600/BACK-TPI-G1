@@ -1,30 +1,30 @@
 # AuxiRuta — Asistencia y remolque vehicular
 
-> Línea base vigente: **AR-MVP-3**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
+> Línea base vigente: **AR-MVP-4**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
 
 ## Alcance y actores
 
-AuxiRuta administra solicitudes inmediatas de traslado de vehículos livianos para una única empresa, todos los días durante las 24 horas. El sistema valida solicitudes, selecciona candidatos, reserva recursos, solicita aceptación al operador y gestiona automáticamente búsquedas, vencimientos, sustituciones por avería y cierres.
+AuxiRuta administra solicitudes inmediatas de traslado de vehículos livianos para una única empresa, todos los días durante las 24 horas. El sistema valida solicitudes, selecciona candidatos, reserva recursos, solicita aceptación al operador y gestiona automáticamente búsquedas, vencimientos y cierres.
 
 | Actor / rol | Responsabilidad y alcance de acceso |
 |---|---|
 | Conductor — DRIVER | Registrar vehículos propios, crear y consultar solicitudes propias y cancelar únicamente antes de la primera asignación aceptada |
-| Operador — OPERATOR | Declarar disponibilidad y ubicación, aceptar/rechazar propuestas, registrar las etapas de sus servicios y comunicar averías |
-| Administrador — ADMIN | Administrar operadores, habilitaciones, grúas y vínculos; consultar globalmente solicitudes, historial, incidencias y parámetros |
+| Operador — OPERATOR | Declarar disponibilidad y ubicación, aceptar/rechazar propuestas, registrar las etapas de sus servicios |
+| Administrador — ADMIN | Administrar operadores, habilitaciones, grúas y vínculos; consultar globalmente solicitudes, historial, demoras y parámetros |
 
 ADMIN no es un permiso universal: no puede aceptar propuestas, registrar etapas por otro operador, cancelar solicitudes ajenas, elegir una grúa, resolver incidencias ni forzar estados. Si una persona reúne varios roles, cada operación sigue exigiendo la propiedad o asignación del rol correspondiente. La identidad procede del subject del JWT.
 
 ### 2.1 Supuestos y exclusiones
 
-Se asumen correctos los datos declarados del vehículo, accesible el punto de retiro y disponible el destino. Los operadores pueden cumplir su tarea sin imprevistos personales. La habilitación y disponibilidad se controlan para admitir cada asignación; el vencimiento durante una ejecución ya despachada no abre una incidencia ni requiere una decisión humana. Se conserva el snapshot utilizado y la exclusividad del recurso hasta liberar.
+Se asumen correctos los datos declarados del vehículo, accesible el punto de retiro y disponible el destino. Los operadores pueden cumplir su tarea sin imprevistos personales. El alta de operadores es administrada por la empresa: se crea su identidad en Keycloak, se asigna OPERATOR y se registra en Fleet su perfil, habilitación y vínculo con una grúa. No existe registro libre de prestadores independientes. La habilitación y disponibilidad se controlan para admitir cada asignación; el vencimiento durante una ejecución ya despachada no abre una incidencia ni requiere una decisión humana. Se conserva el snapshot utilizado y la exclusividad del recurso hasta liberar.
 
-El único impedimento operativo excepcional modelado es la avería de una grúa. La avería solo se admite en ASSIGNED, DISPATCHED, ARRIVED o VEHICLE_LOADED. Desde IN_TRANSIT se asume que la grúa completa el traslado sin averías; no se admite reportarlas ni reasignar por ese motivo. La transferencia física entre equipos, la custodia, el rescate especial y sus procedimientos reales quedan fuera del modelo evaluativo.
+Se asume continuidad operativa desde el despacho hasta la entrega. Las etapas de ejecución son declaradas por el operador y no requieren evaluación administrativa.
 
 Se excluyen pagos, tarifas, facturación, aseguradoras, reparaciones, emergencias, rescate de personas, sanciones, reputación, servicios futuros, múltiples empresas, paradas intermedias, optimización global, GPS continuo, mapas interactivos, geocodificación, fotografías, firmas y documentación adjunta. No se permite elegir grúa ni modificar origen o destino. El origen y el destino se conservan durante toda la solicitud; una sustitución retira el vehículo en el origen original.
 
 No hay coordinación humana del servicio, peticiones de cancelación, correcciones de datos durante la ejecución ni resoluciones manuales de incidencias. Las notificaciones a usuarios continúan excluidas: el seguimiento se consulta por API. El mantenimiento administrativo y el diagnóstico técnico no constituyen aprobaciones del flujo de asistencia.
 
-## Microservicios y colaboración
+## Microservicios
 
 | Componente | Responsabilidad | Datos propios |
 |---|---|---|
@@ -41,7 +41,9 @@ Cada servicio funcional tiene repositorios y modelo propios. La colaboración us
 
 El Gateway constituye infraestructura y no cuenta como uno de los dos microservicios funcionales. El componente común es una dependencia Maven y no un contenedor ejecutable.
 
-## Flujo principal
+## Colaboración
+
+### 7.1 Solicitud, evaluación y asignación
 
 1. Assistance valida identidad, propiedad, entrada y exclusividad local; persiste REQUESTED con la intención de evaluar.
 2. Valida alcance y consulta la ruta origen-destino. Un incumplimiento confirmado termina REJECTED; una falla temporal conserva evaluación pendiente.
@@ -54,18 +56,22 @@ El Gateway constituye infraestructura y no cuenta como uno de los dos microservi
 
 Fleet conserva la autoridad sobre disponibilidad y Assistance sobre el resultado de la solicitud. La participación de ambos es necesaria para producir una asignación válida; no se trata de dos catálogos independientes.
 
-## Avería y sustitución
+### 7.2 Búsqueda alternativa anterior al despacho
 
-El operador comunica una avería de su asignación aceptada. Assistance bloquea/versiona la solicitud, registra la incidencia y la cancelación de esa asignación, conserva la primera aceptación y mantiene el origen original. La operación solo se admite antes de IN_TRANSIT; la carrera contra transport-start se resuelve con bloqueo/versionado de la solicitud.
+Si vence el plazo de despacho o no se confirma elegibilidad para despachar, Assistance cierra la asignación con motivo y conserva firstAssignedAt. Persiste RELEASE, consulta Fleet ante respuestas perdidas y espera confirmación de liberación antes de intentar reservar otra pareja.
 
-Se persisten acciones idempotentes para marcar OUT_OF_SERVICE en Fleet y liberar el compromiso anterior. Hasta confirmar ambos efectos no se reserva otro equipo. Durante esa recuperación SEARCHING_ALTERNATIVE expone recoveryPending; su nuevo plazo de búsqueda comienza al confirmar la liberación y disponibilidad para buscar, sin consumirlo por una limpieza remota pendiente.
+Si queda cupo se abre automáticamente la siguiente búsqueda con origen y destino originales; de lo contrario se termina UNFULFILLED. El conductor no recupera el permiso de cancelar. Tras DISPATCHED solo continúa la secuencia de ejecución; los registros de demora no habilitan sustituciones.
 
-Luego se inicia automáticamente el siguiente intento, o se termina UNFULFILLED si no queda cupo o la recuperación es inviable. Se conserva el historial y el destino. La grúa averiada nunca vuelve a ser candidata mientras siga OUT_OF_SERVICE. El operador recupera libertad tras la liberación, pero una nueva candidatura exige otro equipo operativo y vínculo administrado sin reservas activas.
+## Integración externa
 
-## Arquitectura técnica
+OpenRouteService aporta distancia y duración de la aproximación y del traslado. La aproximación determina elegibilidad y ranking; el traslado determina admisión y fin planificado, utilizado para validar la habilitación. Sin esa información el sistema no dispone de una base confiable para asignar el servicio.
 
-Gateway Spring Cloud Gateway WebFlux; microservicios Spring Boot MVC/JPA; identidad Keycloak; PostgreSQL con assistance_db, fleet_db y keycloak_db; cliente RestClient hacia Fleet y OpenRouteService. El JAR auxiruta-commons comparte utilidades de seguridad y errores, sin entidades ni DTOs de negocio. Todo se desplegará con Docker Compose.
+El cliente recibe coordenadas WGS84 y las adapta al orden [longitud, latitud]. Utiliza Directions driving-car y verifica el ajuste admitido a la red vial. La respuesta debe contener distancia y duración no negativas y los campos necesarios. Respuestas incompletas o inválidas constituyen falla de integración.
 
-La cobertura comercial es circular, de 15 km alrededor de (-31.4167, -64.1833), con cálculo local Haversine. OpenRouteService aporta recorridos por calles y tiempos estimados. La selección automática aplica compatibilidad, habilitación, distancias y plazos; el proveedor no asigna grúas.
+La ausencia confirmada de ruta origen-destino rechaza la solicitud en la admisión inicial; una reevaluación de sustitución inviable termina UNFULFILLED. Ausencia de ruta hacia un candidato lo descarta. Timeout, cuota agotada o indisponibilidad no equivalen a ausencia de ruta y no habilitan aprobación a ciegas.
 
-Las reglas completas, tecnologías, persistencia y requisitos del TPI están definidos en el documento consolidado. Los [diagramas C1 y C2 vigentes](../diagramas/AuxiRuta_C1_C2.md) representan únicamente DRIVER, OPERATOR y ADMIN.
+No se presupone tránsito en tiempo real, acceso garantizado de vehículos pesados ni certificación de transitabilidad. El acceso al vehículo y la recepción en destino se asumen posibles dentro del alcance evaluativo. La URL vigente y las cuotas de la cuenta deben verificarse al construir el adaptador. La clave permanece fuera del repositorio y la comunicación con el proveedor utiliza HTTPS.
+
+## Arquitectura
+
+Gateway WebFlux; servicios Spring Boot MVC/JPA; Keycloak; PostgreSQL con tres bases; RestClient y JAR auxiruta-commons. Despliegue con Docker Compose. Los [diagramas vigentes](../diagramas/AuxiRuta_C1_C2.md) representan DRIVER, OPERATOR y ADMIN.

@@ -1,16 +1,14 @@
 # AuxiRuta — Operaciones por rol y alcance del MVP
 
-> Línea base vigente: **AR-MVP-3**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
+> Línea base vigente: **AR-MVP-4**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
 
-## Permisos
-
-DRIVER opera exclusivamente sobre sus vehículos y solicitudes. OPERATOR responde propuestas y declara hechos de sus propias asignaciones. ADMIN administra recursos y consulta globalmente; no hereda operaciones del conductor u operador. Las tareas automáticas utilizan identidad técnica y no el rol ADMIN.
+### 12.1 Convenciones
 
 El acceso público utiliza `/api/v1`, representaciones JSON, DTOs validados y ResponseEntity. Los listados tienen paginación y filtros. Los endpoints de consulta no cambian el estado. Las acciones específicas representan transiciones de negocio, sin permitir saltos arbitrarios.
 
 Los identificadores y las fechas de autoridad son del servidor. La API filtra por propietario/asignación salvo permisos globales expresos. Una operación idempotente devuelve su resultado durable y no repite efectos.
 
-## Endpoints públicos y comportamiento
+### 12.2 Operaciones públicas
 
 Las rutas son relativas a `/api/v1`. A = Assistance; F = Fleet. ADMIN posee consulta global y administración de recursos, sin heredar operaciones personales ni permisos técnicos. Los listados globales y su detalle se filtran según rol.
 
@@ -31,19 +29,18 @@ Las rutas son relativas a `/api/v1`. A = Assistance; F = Fleet. ADMIN posee cons
 | POST /assistance-requests/{id}/loading | A | OPERATOR asignado: declarar carga |
 | POST /assistance-requests/{id}/transport-start | A | OPERATOR asignado: declarar inicio de traslado |
 | POST /assistance-requests/{id}/completion | A | OPERATOR asignado: confirmar entrega/descarga y gestionar liberación |
-| POST /assistance-requests/{id}/incidents | A | OPERATOR de asignación ACCEPTED: comunicar TOW_TRUCK_BREAKDOWN solo en ASSIGNED, DISPATCHED, ARRIVED o VEHICLE_LOADED; exige descripción/ubicación y dispara sustitución automática. En IN_TRANSIT devuelve 409 sin efectos |
 | GET /incidents; GET /incidents/{id} | A | ADMIN: consultar incidencias y resultados automáticos |
 | GET /operators; GET /operators/{id}; GET /tow-trucks; GET /tow-trucks/{id} | F | ADMIN: consultar catálogo global y capacidades |
 | POST /operators; PATCH /operators/{id}; PATCH /operators/{id}/registration-status | F | ADMIN: administrar perfil de subject existente; cambios solo sin compromiso activo |
 | PUT /operators/{id}/qualification | F | ADMIN: registrar/renovar habilitación solo sin compromiso activo |
 | POST /tow-trucks; PATCH /tow-trucks/{id} | F | ADMIN: crear equipo INACTIVE y administrar datos/capacidades si está libre |
 | PUT /tow-trucks/{id}/operator; DELETE /tow-trucks/{id}/operator | F | ADMIN: vincular/desvincular recursos libres |
-| PATCH /tow-trucks/{id}/operational-status | F | ADMIN: administrar equipo libre, incluido reactivar OUT_OF_SERVICE con motivo; no interrumpir servicios activos |
+| PATCH /tow-trucks/{id}/operational-status | F | ADMIN: administrar equipo libre, activar, pasar a mantenimiento o inactivar con motivo; no interrumpir servicios activos |
 | GET /configuration/assistance; GET /configuration/fleet | A / F | ADMIN: consultar parámetros efectivos sin secretos; sin edición por API |
 
 No se implementan rutas públicas de resolución de incidencias, reasignación manual, cancelación administrativa, petición de cancelación ni corrección de datos declarados. Tampoco hay edición libre del estado de una solicitud. La gestión de usuarios, contraseñas y roles pertenece a la consola de Keycloak; no se agrega un CRUD propio de identidad.
 
-## Colaboración técnica
+### 12.3 Contrato interno de Fleet
 
 Estas rutas no utilizan el prefijo público y requieren autorización técnica:
 
@@ -55,12 +52,11 @@ Estas rutas no utilizan el prefijo público y requieren autorización técnica:
 | POST /internal/reservations/{assignmentAttemptId}/confirmation | Confirmar antes de vencimiento, revalidando elegibilidad |
 | POST /internal/reservations/{assignmentAttemptId}/release | Liberar idempotentemente sin reactivar equipo |
 | GET /internal/reservations/{assignmentAttemptId}/eligibility | Revalidar compromiso, operación y habilitación |
-| POST /internal/tow-trucks/{id}/out-of-service | Registrar avería idempotente vinculada a incidencia |
 | POST /internal/reservations/status-queries | Consultar lista acotada de reservas y recursos actuales; POST transporta filtro compuesto, sin efectos de negocio |
 
 La reserva recibe el deadline de búsqueda, datos necesarios de compatibilidad y fin estimado. La respuesta incluye identificadores, expiresAt y confirmedAt cuando corresponda. El consumidor define DTOs propios y no comparte entidades de Fleet.
 
-## Respuestas y documentación
+### 12.4 Respuestas, errores y documentación
 
 | HTTP | Uso |
 |---|---|
@@ -80,31 +76,38 @@ Los errores usan ProblemDetail y código funcional estable. Un resultado REJECTE
 
 Los contratos OpenAPI de ambos servicios deben incluir esquemas, parámetros, roles, ejemplos, respuestas y errores; springdoc publica especificación y Swagger UI. El Gateway enruta documentación por servicio para usuarios autenticados y excluye controladores internos de la especificación pública. Las URLs documentadas deben corresponder al acceso externo real.
 
-## Funciones automáticas incluidas
+## Actores, supuestos y exclusiones
 
-- Validación de cobertura, vehículos, habilitaciones, recorridos y exclusividad.
-- Selección y ordenamiento de candidatos, retención y generación de propuestas.
-- Vencimiento/rechazo de propuestas, reintentos de evaluación y búsquedas alternativas.
-- Reasignación por falta de despacho y por avería, solo antes de iniciar IN_TRANSIT.
-- Cambio a OUT_OF_SERVICE y liberación controlada del equipo averiado.
-- Cierre UNFULFILLED al agotar límites o confirmar recuperación inviable.
-- Registro informativo y cierre automático de demoras.
-- Historial persistente, idempotencia y reconciliación de efectos remotos inciertos.
+AuxiRuta administra solicitudes inmediatas de traslado de vehículos livianos para una única empresa, todos los días durante las 24 horas. El sistema valida solicitudes, selecciona candidatos, reserva recursos, solicita aceptación al operador y gestiona automáticamente búsquedas, vencimientos y cierres.
 
-Aceptar una propuesta, declarar etapas y comunicar una avería siguen siendo acciones del operador: son hechos de la prestación, no evaluaciones administrativas. Crear una solicitud y cancelar antes de aceptar son acciones del conductor.
+| Actor / rol | Responsabilidad y alcance de acceso |
+|---|---|
+| Conductor — DRIVER | Registrar vehículos propios, crear y consultar solicitudes propias y cancelar únicamente antes de la primera asignación aceptada |
+| Operador — OPERATOR | Declarar disponibilidad y ubicación, aceptar/rechazar propuestas, registrar las etapas de sus servicios |
+| Administrador — ADMIN | Administrar operadores, habilitaciones, grúas y vínculos; consultar globalmente solicitudes, historial, demoras y parámetros |
 
-## Alcance técnico comprometido
+ADMIN no es un permiso universal: no puede aceptar propuestas, registrar etapas por otro operador, cancelar solicitudes ajenas, elegir una grúa, resolver incidencias ni forzar estados. Si una persona reúne varios roles, cada operación sigue exigiendo la propiedad o asignación del rol correspondiente. La identidad procede del subject del JWT.
 
-Dos microservicios Java/Spring Boot con datos independientes y colaboración real; Gateway; Keycloak; API externa de rutas; JAR común; JPA/PostgreSQL con tres bases; REST/OpenAPI; Docker Compose; logging básico. La matriz de requisitos y evidencias figura en el documento consolidado. No se afirma que estén implementados.
+### 2.1 Supuestos y exclusiones
 
-## Fuera del MVP
+Se asumen correctos los datos declarados del vehículo, accesible el punto de retiro y disponible el destino. Los operadores pueden cumplir su tarea sin imprevistos personales. El alta de operadores es administrada por la empresa: se crea su identidad en Keycloak, se asigna OPERATOR y se registra en Fleet su perfil, habilitación y vínculo con una grúa. No existe registro libre de prestadores independientes. La habilitación y disponibilidad se controlan para admitir cada asignación; el vencimiento durante una ejecución ya despachada no abre una incidencia ni requiere una decisión humana. Se conserva el snapshot utilizado y la exclusividad del recurso hasta liberar.
 
-Se asumen correctos los datos declarados del vehículo, accesible el punto de retiro y disponible el destino. Los operadores pueden cumplir su tarea sin imprevistos personales. La habilitación y disponibilidad se controlan para admitir cada asignación; el vencimiento durante una ejecución ya despachada no abre una incidencia ni requiere una decisión humana. Se conserva el snapshot utilizado y la exclusividad del recurso hasta liberar.
-
-El único impedimento operativo excepcional modelado es la avería de una grúa. La avería solo se admite en ASSIGNED, DISPATCHED, ARRIVED o VEHICLE_LOADED. Desde IN_TRANSIT se asume que la grúa completa el traslado sin averías; no se admite reportarlas ni reasignar por ese motivo. La transferencia física entre equipos, la custodia, el rescate especial y sus procedimientos reales quedan fuera del modelo evaluativo.
+Se asume continuidad operativa desde el despacho hasta la entrega. Las etapas de ejecución son declaradas por el operador y no requieren evaluación administrativa.
 
 Se excluyen pagos, tarifas, facturación, aseguradoras, reparaciones, emergencias, rescate de personas, sanciones, reputación, servicios futuros, múltiples empresas, paradas intermedias, optimización global, GPS continuo, mapas interactivos, geocodificación, fotografías, firmas y documentación adjunta. No se permite elegir grúa ni modificar origen o destino. El origen y el destino se conservan durante toda la solicitud; una sustitución retira el vehículo en el origen original.
 
 No hay coordinación humana del servicio, peticiones de cancelación, correcciones de datos durante la ejecución ni resoluciones manuales de incidencias. Las notificaciones a usuarios continúan excluidas: el seguimiento se consulta por API. El mantenimiento administrativo y el diagnóstico técnico no constituyen aprobaciones del flujo de asistencia.
 
-No se incorporan endpoints administrativos para reintentar, aprobar o descartar efectos técnicos inciertos. Su recuperación es automática; las correcciones de infraestructura/configuración son mantenimiento de desarrollo y operación.
+## Automatización
+
+Cada reasignación posterior a una aceptación abre automáticamente un nuevo intento de búsqueda de 600 s y hasta cinco propuestas. Se admiten dos reasignaciones, es decir, tres intentos totales contando el inicial. Los rechazos anteriores a aceptar no consumen reasignación. No hay endpoint humano para iniciar una búsqueda alternativa ni seleccionar su candidato.
+
+Antes de despachar se revalidan reserva confirmada, estado operativo, ubicación, rutas y habilitación. El vencimiento de los 300 s para despachar o la pérdida confirmada de elegibilidad antes del despacho genera una búsqueda alternativa, previa liberación. Una falla temporal no extiende el plazo ni habilita el despacho a ciegas.
+
+Si se agotan las reasignaciones, vence la búsqueda o se agotan sus propuestas sin aceptación, la solicitud termina UNFULFILLED con motivo. Una confirmación remota incierta se reconcilia antes de concluir que no existe aceptación válida. La nueva búsqueda comienza al confirmar la liberación anterior; su plazo no se consume durante esa limpieza técnica.
+
+Una vez en DISPATCHED no se reasigna ni se cancela el servicio: el operador registra llegada, carga, traslado y entrega. Se conservan el origen, el destino y los datos declarados. Los retrasos solo generan registros informativos.
+
+## Entrega técnica
+
+Dos microservicios funcionales Java/Spring Boot, API Gateway, Keycloak, OpenRouteService, JAR común, persistencia JPA/PostgreSQL con tres bases, REST/OpenAPI, Docker Compose y logging básico. La matriz de evidencias está en el documento consolidado.

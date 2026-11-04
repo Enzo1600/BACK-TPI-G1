@@ -1,19 +1,19 @@
 # AuxiRuta — Diagramas C1 y C2
 
-Línea base AR-MVP-3, 4 de noviembre de 2026. Fuente vigente del diseño; implementación pendiente. Los archivos AuxiRuta_C1.png y AuxiRuta_C2.png son antecedentes históricos y quedan sustituidos por estos diagramas.
+Línea base AR-MVP-4, 4 de noviembre de 2026. Fuente vigente del diseño; implementación pendiente. Los archivos AuxiRuta_C1.png y AuxiRuta_C2.png son antecedentes históricos y quedan sustituidos por estos diagramas.
 
 ## C1 — Contexto
 
 ```mermaid
 flowchart LR
     D[Conductor / DRIVER] -->|Vehículos y solicitudes propias| S[AuxiRuta]
-    O[Operador / OPERATOR] -->|Propuestas, etapas y averías propias| S
+    O[Operador / OPERATOR] -->|Propuestas y etapas propias| S
     A[Administrador / ADMIN] -->|Administración de recursos y consulta global| S
     S -->|Identidad OIDC| K[Keycloak]
     S -->|Distancias y tiempos por calles| R[OpenRouteService / API externa]
 ```
 
-La selección, los vencimientos, las sustituciones por avería y los cierres no exitosos se deciden mediante reglas automáticas. El administrador no aprueba ni dirige servicios. Los usuarios registran hechos y consultan resultados.
+La selección, los vencimientos y las búsquedas alternativas previas al despacho se deciden mediante reglas automáticas. ADMIN administra recursos y consulta; el alta de operadores pertenece a la empresa.
 
 ## C2 — Contenedores
 
@@ -42,4 +42,4 @@ flowchart TB
 
 Assistance administra vehículos, solicitudes, evaluación, selección, estados, incidencias y tareas de recuperación. Fleet administra operadores, equipos y reservas exclusivas. El JAR común es una dependencia, no un contenedor. Solo Gateway y Keycloak publican puertos al host. No existe una base adicional para logs ni notificaciones.
 
-En AR-MVP-3 las averías y sustituciones solo se admiten antes de IN_TRANSIT. Una vez iniciado el traslado se asume continuidad hasta la entrega y no existe intervención administrativa.
+Desde DISPATCHED se mantiene la asignación hasta la entrega; las demoras solo son informativas.
