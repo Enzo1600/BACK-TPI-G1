@@ -9,7 +9,7 @@ AuxiRuta coordina solicitudes de asistencia y remolque de vehículos livianos: e
 Documento principal: **[Decisiones arquitectónicas](docs/DECISIONES_ARQUITECTONICAS.md)**. Consolida el dominio, la arquitectura, los contratos propuestos, el glosario y la correspondencia con los requisitos mínimos.
 
 - `docs/documentacionPartes/`: documentación funcional y técnica.
-- `docs/diagramas/`: diagramas vigentes [C1 y C2 en Mermaid](docs/diagramas/AuxiRuta_C1_C2.md). Los PNG anteriores se conservan como antecedentes históricos y no describen la línea base actual.
+- `docs/diagramas/`: diagramas vigentes [C1 — Contexto](docs/diagramas/AuxiRuta_C1.drawio.png), [C2 — Contenedores](docs/diagramas/AuxiRuta_C2.png) y [BPMN — Proceso principal](docs/diagramas/bpmn.png).
 
 | Documento | Contenido |
 |---|---|
@@ -40,7 +40,7 @@ DECISIONES_ARQUITECTONICAS.md constituye la referencia consolidada vigente. Los 
 
 ## Estado del proyecto
 
-El repositorio contiene el diseño y la documentación. Los proyectos ejecutables, contratos OpenAPI e infraestructura todavía deben implementarse. La fuente C1/C2 vigente está disponible en `docs/diagramas/AuxiRuta_C1_C2.md`; los PNG previos son históricos. Los próximos pasos están detallados en el documento de contexto.
+El repositorio contiene el diseño y la documentación. Los proyectos ejecutables, contratos OpenAPI e infraestructura todavía deben implementarse. Los diagramas vigentes de [contexto C1](docs/diagramas/AuxiRuta_C1.drawio.png), [contenedores C2](docs/diagramas/AuxiRuta_C2.png) y [proceso principal BPMN](docs/diagramas/bpmn.png) están disponibles en `docs/diagramas/`. Los próximos pasos están detallados en el documento de contexto.
 
 ## Demostración temporal prevista
 
