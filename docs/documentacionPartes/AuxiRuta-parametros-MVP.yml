@@ -1,7 +1,7 @@
-# AR-MVP-1: referencia funcional; distribuir en cada servicio según su responsabilidad.
+# AR-MVP-3: referencia funcional; distribuir en cada servicio según su responsabilidad.
 # Valores del proyecto, no límites legales ni garantía de tiempos reales.
 auxiruta:
-  rules-version: AR-MVP-1
+  rules-version: AR-MVP-3
   display-time-zone: America/Argentina/Cordoba
   coverage:
     center-latitude: -31.4167
@@ -40,13 +40,25 @@ auxiruta:
     max-location-age-seconds: 300
     max-dispatch-location-age-seconds: 120
     reconciliation-interval-seconds: 15
+  cancellation:
+    allowed-only-before-first-acceptance: true
+  assumptions:
+    declared-vehicle-data-correct: true
+    pickup-accessible: true
+    no-breakdown-during-transit: true
+    destination-available: true
+    operator-continuity: true
+  recovery:
+    allowed-breakdown-statuses: [ASSIGNED, DISPATCHED, ARRIVED, VEHICLE_LOADED]
+    breakdown-during-transit-allowed: false
+    preserve-original-pickup: true
+    exhausted-outcome: UNFULFILLED
   execution:
     dispatch-deadline-seconds: 300
     rollable-loading-seconds: 900
     non-rollable-loading-seconds: 1800
     unloading-seconds: 600
     delay-tolerance-seconds: 900
-    suspension-priority-after-seconds: 900
     delay-check-interval-seconds: 30
   integration:
     connect-timeout-seconds: 2

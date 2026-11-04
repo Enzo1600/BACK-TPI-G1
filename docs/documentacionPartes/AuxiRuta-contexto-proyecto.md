@@ -11,11 +11,11 @@ La documentación actual está en docs/documentacionPartes/, junto a este archiv
 | Documento actual | Contenido |
 |---|---|
 | AuxiRuta.md | Resumen del dominio y división funcional |
-| AuxiRuta-reglas-de-negocio-MVP.md | Reglas AR-MVP-1 y restricciones fijas |
+| AuxiRuta-reglas-de-negocio-MVP.md | Reglas AR-MVP-3 y restricciones fijas |
 | AuxiRuta-parametros-MVP.yml | Valores de referencia para configurar los servicios |
 | AuxiRuta-estados-y-transiciones.md | Estados de solicitud, vehículo, grúa, reserva e incidencia |
 | AuxiRuta-operaciones-por-rol-y-alcance-MVP.md | Roles, endpoints propuestos y alcance |
-| AuxiRuta-modelo-persistente-MVP.md | Entidades, tablas y precisiones de AR-MVP-1 |
+| AuxiRuta-modelo-persistente-MVP.md | Entidades, tablas y precisiones de AR-MVP-3 |
 | AuxiRuta-logging-basico.md | Logging básico incorporado por decisión del equipo |
 
 Referencia consolidada vigente: [DECISIONES_ARQUITECTONICAS.md](../DECISIONES_ARQUITECTONICAS.md). Sus decisiones prevalecen ante contradicciones con estos documentos parciales. Este archivo se conserva como guía de contexto auxiliar; el YAML de parámetros y los contratos deben mantenerse alineados con la especificación consolidada.
@@ -111,8 +111,9 @@ auxiruta/
 │   │   ├── fleet-service.yaml          [pendiente]
 │   │   └── assistance-service.yaml     [pendiente]
 │   └── diagramas/
-│       ├── AuxiRuta_C1.png
-│       └── AuxiRuta_C2.png
+│       ├── AuxiRuta_C1_C2.md  # vigente
+│       ├── AuxiRuta_C1.png    # histórico
+│       └── AuxiRuta_C2.png    # histórico
 ├── auxiruta-commons/
 │   ├── pom.xml
 │   └── src/
@@ -151,7 +152,7 @@ En el Gateway, los servicios públicos conservan el prefijo /api/v1, sin reescri
 | /api/v1/vehicles/** | Assistance |
 | /api/v1/assistance-requests/** | Assistance |
 | /api/v1/assignments/** y /api/v1/operator/assignments | Assistance |
-| /api/v1/incidents/** y /api/v1/cancellation-requests/** | Assistance |
+| /api/v1/incidents/** | Assistance |
 | /api/v1/operators/** y /api/v1/tow-trucks/** | Fleet |
 | /api/v1/configuration/assistance | Assistance |
 | /api/v1/configuration/fleet | Fleet |
@@ -168,7 +169,7 @@ Swagger y /v3/api-docs se enrutan expresamente bajo rutas documentales separadas
 
 Realm: auxiruta.
 
-Roles humanos de realm: DRIVER, OPERATOR, COORDINATOR y ADMIN. Se agrega un permiso técnico de realm FLEET_SERVICE, que no se asigna a usuarios humanos. Ese permiso no constituye un quinto actor del negocio.
+Roles humanos de realm: DRIVER, OPERATOR y ADMIN. Se agrega un permiso técnico de realm FLEET_SERVICE, que no se asigna a usuarios humanos. Ese permiso no constituye un cuarto actor del negocio.
 
 Los roles llegan en realm_access.roles y se transforman en authorities ROLE_*. La extracción reutilizable se implementa en auxiruta-commons; la adaptación a Authentication servlet o reactiva se hace en cada aplicación. Claims ausentes no conceden permisos.
 
@@ -229,7 +230,7 @@ Scripts SQL controlados para las bases funcionales y spring.jpa.hibernate.ddl-au
 
 Flyway del ejemplo no se incorpora: quedó fuera del MVP. Keycloak mantiene sus propias migraciones. No hay claves foráneas ni consultas SQL cruzadas entre servicios.
 
-Entidades y tablas vigentes: ver AuxiRuta-modelo-persistente-MVP.md, incluyendo su apartado 8 de ajustes AR-MVP-1. Relaciones locales principalmente N→1 LAZY, enums como texto y referencias externas como UUID simples.
+Entidades y tablas vigentes: ver AuxiRuta-modelo-persistente-MVP.md, con campos y restricciones AR-MVP-3. Relaciones locales principalmente N→1 LAZY, enums como texto y referencias externas como UUID simples.
 
 Las reservas requieren exclusividad real con transacciones, bloqueo y restricciones adecuadas. @Version no evita por sí solo dos inserciones concurrentes. Nunca se mantiene un bloqueo de base mientras se espera a OpenRouteService.
 
@@ -266,7 +267,7 @@ Compose traduce las variables comunes del .env a DB_PASSWORD de cada servicio. L
 
 .env.example contiene nombres y valores ficticios; .env no se versiona. Las variables sensibles se exigen al arrancar, sin contraseñas de respaldo en el código.
 
-Reglas: @ConfigurationProperties con validación de valores. AuxiRuta-parametros-MVP.yml es una referencia que debe distribuirse/importarse en la configuración efectiva, no se carga automáticamente por estar dentro de docs. Los servicios que comparten una restricción reciben el mismo valor AR-MVP-1. No hay edición de reglas mediante API.
+Reglas: @ConfigurationProperties con validación de valores. AuxiRuta-parametros-MVP.yml es una referencia que debe distribuirse/importarse en la configuración efectiva, no se carga automáticamente por estar dentro de docs. Los servicios que comparten una restricción reciben el mismo valor AR-MVP-3. No hay edición de reglas mediante API.
 
 Valores principales: radio 15 km desde (-31.4167, -64.1833); vehículos CAR/SUV/PICKUP de 500 a 3.000 kg; aproximación <=15 km por calles; traslado 500 m a 30 km; búsqueda 10 min; hasta 5 propuestas; reserva <=60 s; 2 reasignaciones; despacho antes de 5 min. Fórmulas, excepciones y límites completos están en el documento de reglas.
 
@@ -312,7 +313,7 @@ El ejemplo de SkyClear se utiliza como referencia de organización. Sus instrucc
 ## 10. Estado real y próximos pasos
 
 - [x] Dominio, microservicios y roles definidos.
-- [x] Reglas AR-MVP-1 y valores concretos documentados.
+- [x] Reglas AR-MVP-3 y valores concretos documentados.
 - [x] Estados, operaciones y alcance del MVP documentados.
 - [x] Modelo persistente propuesto, con ajustes por reglas fijas.
 - [x] Decisiones técnicas de este documento preparadas para implementar.
@@ -325,7 +326,7 @@ El ejemplo de SkyClear se utiliza como referencia de organización. Sus instrucc
 - [ ] Implementar un primer recorrido protegido de Fleet y enrutarlo por Gateway.
 - [ ] Implementar vehículo y solicitud en Assistance y la consulta autenticada a Fleet.
 - [ ] Implementar OpenRouteService, evaluaciones y reserva/aceptación exclusivas.
-- [ ] Completar ejecución, cancelación, incidencias y reasignación previa a carga.
+- [ ] Completar ejecución, cancelación, incidencias y reasignación automática únicamente antes de IN_TRANSIT.
 - [ ] Implementar vencimientos, acciones pendientes y reconciliación.
 - [ ] Implementar el logging básico según AuxiRuta-logging-basico.md.
 - [ ] Completar Dockerfiles/Compose, documentación y colección funcional; verificar arranque reproducible con volumen vacío y reinicio conservando datos.
@@ -342,3 +343,9 @@ Pendientes técnicos que no deben darse por probados: parche exacto de Temurin, 
 - [Hostname público y backchannel de Keycloak](https://www.keycloak.org/server/hostname).
 
 Las páginas oficiales pueden mostrar por defecto una generación posterior de Spring; el código concreto debe contrastarse con la documentación de la línea 6.5/Boot 3.5 elegida antes de implementarlo.
+
+## Automatización operativa AR-MVP-3
+
+La asistencia no requiere aprobación ni resolución administrativa. ADMIN administra recursos y consulta globalmente; no cancela solicitudes, no selecciona grúas y no declara etapas. DRIVER solo puede cancelar antes de la primera aceptación durable; OPERATOR acepta propuestas, registra etapas y reporta averías. Una avería anterior a IN_TRANSIT provoca sustitución automática dentro de dos reasignaciones. Durante IN_TRANSIT se asume que no hay averías. El agotamiento produce UNFULFILLED con motivo y última ubicación. Los supuestos excluyen discrepancias, inaccesibilidad, destino no disponible e imprevistos personales del operador. No hay peticiones de cancelación, corrección operativa ni endpoints de resolución de incidencias.
+
+Los diagramas vigentes son [C1 y C2 en Mermaid](../diagramas/AuxiRuta_C1_C2.md). Los PNG previos se conservan únicamente como antecedentes históricos.

@@ -1,24 +1,16 @@
-# AuxiRuta — Modelo persistente del MVP revisado según los apuntes
+# AuxiRuta — Modelo persistente del MVP
 
-> Restricciones fijas: `AuxiRuta-reglas-de-negocio-MVP.md` (AR-MVP-1), con parámetros en `AuxiRuta-parametros-MVP.yml`. Cobertura circular de 15 km. Ante diferencias anteriores, prevalece el documento de reglas para límites, plazos y casos de borde.
+> Línea base vigente: **AR-MVP-3**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
 
-## 1. Qué cambia respecto de la explicación inicial
+## 1. Alcance del modelo
 
-La explicación anterior de tablas era una alternativa ampliada. Este documento es el modelo propuesto para implementar el MVP: nueve entidades de Assistance, cuatro de Fleet y una tabla auxiliar de tipos admitidos. Keycloak administra su propio esquema.
+El modelo comprende ocho entidades de Assistance, cuatro de Fleet y una tabla auxiliar de tipos de vehículo admitidos. Keycloak administra su propio esquema. Se conserva trazabilidad de evaluaciones, reservas y recuperación de operaciones. Los snapshots son columnas, la habilitación actual pertenece a Operator, el vínculo actual pertenece a TowTruck y los parámetros se distribuyen mediante configuración.
 
-Se mantienen la trazabilidad de evaluaciones, exclusividad de reservas y recuperación de operaciones incompletas. Se eliminan tablas que no son necesarias para demostrar el proceso:
-
-- RequestVehicleSnapshot: sus datos se guardan como columnas de la solicitud y de cada evaluación.
-- OperatorQualification: la habilitación vigente se guarda en Operator; las evaluaciones conservan la utilizada para decidir. Un historial completo de renovaciones es una ampliación.
-- TruckOperatorLink: el vínculo actual se guarda en TowTruck; las reservas y asignaciones conservan los recursos que intervinieron. Un historial consultable de vínculos administrativos es una ampliación; el cambio se registra en logs.
-- AssistanceConfiguration y FleetConfiguration: parámetros en application.yml/variables de entorno. Los límites usados y vencimientos calculados quedan persistidos donde corresponda.
-- PendingAction genérica en ambos servicios: se reemplaza por PendingFleetAction, una acción tipada en Assistance con columnas explícitas. Fleet no consume Assistance.
-
-Esto es una decisión de alcance y modelado, no una exigencia textual de los apuntes. Reducir tablas no justifica quitar información que una regla necesita.
+La cancelación previa a primera aceptación se registra en AssistanceRequest e historial; no tiene entidad de petición o autorización. Las incidencias solo representan averías y demoras con tratamiento automático. No hay campos de custodia, responsable humano de resolución ni estado suspendido.
 
 ## 2. Forma de implementar persistencia
 
-Cada entidad utiliza jakarta.persistence: @Entity, @Table, @Id y @Column; constructor sin argumentos; enums como @Enumerated(EnumType.STRING). Se conservan UUID como identificadores, ya contemplados en la introducción a JPA. Para simplificar control de identidad, pueden generarse antes de persistir desde Java; se debe definir una única estrategia coherente por entidad.
+Cada entidad utiliza jakarta.persistence: @Entity, @Table, @Id y @Column; constructor sin argumentos; enums como @Enumerated(EnumType.STRING). Se conservan UUID como identificadores. Para simplificar control de identidad, pueden generarse antes de persistir desde Java; se debe definir una única estrategia coherente por entidad.
 
 Repositorios que extienden JpaRepository<Entidad, UUID>, consultas derivadas para casos simples y @Query/JPQL cuando corresponde. Controllers reciben/devuelven DTOs, no entidades.
 
@@ -28,7 +20,7 @@ Los IDs de otro servicio y los subjects de Keycloak son campos simples, sin rela
 
 Tipos: UUID para IDs, BigDecimal para pesos/coordenadas, Instant para instantes y PostgreSQL TIMESTAMPTZ para fechas absolutas. Los ejemplos de columnas siguientes son un esquema lógico; el DDL definitivo debe completar longitudes, nulos, precisión e índices.
 
-@Version y bloqueos JPA son una extensión puntual de concurrencia del proyecto, que debe comprenderse y verificarse, no una técnica desarrollada explícitamente en los apuntes provistos.
+@Version y bloqueos JPA deben comprobarse junto con las restricciones de exclusividad.
 
 ## 3. Assistance: assistance_db
 
@@ -57,7 +49,12 @@ id UUID PK
 vehicle_id UUID FK → vehicles NOT NULL
 driver_subject VARCHAR NOT NULL
 status VARCHAR NOT NULL
-suspended_from_status VARCHAR NULL
+first_assigned_at TIMESTAMPTZ NULL
+last_vehicle_latitude DECIMAL NOT NULL
+last_vehicle_longitude DECIMAL NOT NULL
+last_vehicle_location_at TIMESTAMPTZ NOT NULL
+execution_started_at TIMESTAMPTZ NULL
+closure_reason_code VARCHAR NULL
 origin_latitude DECIMAL NOT NULL
 origin_longitude DECIMAL NOT NULL
 destination_latitude DECIMAL NOT NULL
@@ -65,7 +62,7 @@ destination_longitude DECIMAL NOT NULL
 declared_vehicle_type VARCHAR NOT NULL
 declared_weight_kg DECIMAL NOT NULL
 mobility_condition VARCHAR NOT NULL
-declared_data_revision INTEGER NOT NULL
+
 description TEXT
 search_attempt_number INTEGER NOT NULL
 search_deadline TIMESTAMPTZ NOT NULL
@@ -79,7 +76,7 @@ version BIGINT NOT NULL
 UNIQUE(driver_subject, idempotency_key)
 ```
 
-Se copian datos del vehículo al crear la solicitud. La corrección autorizada incrementa declared_data_revision; la evaluación previa y el historial conservan los valores originales. request_fingerprint permite rechazar la misma clave idempotente con un cuerpo distinto.
+Los datos del vehículo se copian al crear y no se corrigen durante el servicio. first_assigned_at se fija con la primera confirmación durable de Fleet y nunca se borra al reasignar. El retiro siempre coincide con el origen original, también después de una avería anterior a IN_TRANSIT; no se requieren columnas de retiro alternativo. No se modelan averías durante el traslado. La última ubicación conocida se actualiza con hechos declarados (llegada, carga, avería o entrega), sin GPS continuo. request_fingerprint distingue reintentos de creación incompatibles.
 
 No es necesario guardar resourceReleasePending como otra verdad duplicada: la respuesta puede calcularlo desde las acciones de liberación pendientes.
 
@@ -104,7 +101,7 @@ end_reason TEXT NULL
 version BIGINT NOT NULL
 ```
 
-Estados: RESERVATION_PENDING → PROPOSED → ACCEPTED → CLOSED. Una reserva en conflicto puede terminar RESERVATION_FAILED; una propuesta puede terminar REJECTED, EXPIRED o CANCELLED. RESERVATION_PENDING evita perder el rastro si Fleet reserva pero se pierde la respuesta. La solicitud permanece en su etapa de evaluación/búsqueda hasta que la reserva se confirme y pasa entonces a AWAITING_ACCEPTANCE.
+Estados: RESERVATION_PENDING → PROPOSED → ACCEPTED → CLOSED/CANCELLED. Una reserva en conflicto puede terminar RESERVATION_FAILED; una propuesta puede terminar REJECTED, EXPIRED o CANCELLED. Una asignación aceptada queda CANCELLED por avería, con end_reason BREAKDOWN; la solicitud sigue su búsqueda automática. RESERVATION_PENDING evita perder el rastro si Fleet reserva pero se pierde la respuesta. La solicitud permanece en su etapa de evaluación/búsqueda hasta que la reserva se confirme y pasa entonces a AWAITING_ACCEPTANCE.
 
 ### Evaluation → evaluations
 
@@ -114,7 +111,7 @@ Cabecera de cada intento, resultado y snapshot de datos y parámetros.
 id UUID PK
 request_id UUID FK → assistance_requests NOT NULL
 search_attempt_number INTEGER NOT NULL
-declared_data_revision INTEGER NOT NULL
+
 vehicle_type VARCHAR NOT NULL
 declared_weight_kg DECIMAL NOT NULL
 mobility_condition VARCHAR NOT NULL
@@ -176,7 +173,7 @@ correlation_id VARCHAR NULL
 occurred_at TIMESTAMPTZ NOT NULL
 ```
 
-details puede registrar una corrección con valores anteriores y nuevos aun cuando el estado permanezca igual. La creación registra previous_status NULL. Los logs técnicos no reemplazan estas filas de auditoría funcional.
+details conserva aperturas de búsqueda, plazos, averías y puntos de recuperación; las acciones automáticas utilizan actor_type SYSTEM y actor_subject NULL. La creación registra previous_status NULL. Los logs técnicos no reemplazan estas filas de auditoría funcional.
 
 ### Incident → incidents
 
@@ -186,37 +183,21 @@ request_id UUID FK → assistance_requests NOT NULL
 assignment_id UUID FK → assignments NOT NULL
 type VARCHAR NOT NULL
 description TEXT NOT NULL
-blocking BOOLEAN NOT NULL
 status VARCHAR NOT NULL
 request_status_at_report VARCHAR NOT NULL
-reported_by_subject VARCHAR NOT NULL
+reported_by_subject VARCHAR NULL
+reporter_type VARCHAR NOT NULL
 reported_at TIMESTAMPTZ NOT NULL
-resolution_type VARCHAR NULL
-resolution_notes TEXT NULL
-resolved_by_subject VARCHAR NULL
+breakdown_latitude DECIMAL NULL
+breakdown_longitude DECIMAL NULL
+automatic_result VARCHAR NULL
 resolved_at TIMESTAMPTZ NULL
-final_vehicle_latitude DECIMAL NULL
-final_vehicle_longitude DECIMAL NULL
-custody_responsible VARCHAR NULL
+generated_key VARCHAR UNIQUE NOT NULL
+operation_key VARCHAR UNIQUE NULL
 version BIGINT NOT NULL
 ```
 
-Una resolución final por incidencia; no necesita tabla aparte. CLOSED_UNRESOLVED exige constancia de ubicación, custodia y resultado.
-
-### CancellationRequest → cancellation_requests
-
-```text
-id UUID PK
-request_id UUID FK → assistance_requests NOT NULL
-requested_by_subject VARCHAR NOT NULL
-reason TEXT NOT NULL
-status VARCHAR NOT NULL
-requested_at TIMESTAMPTZ NOT NULL
-resolved_by_subject VARCHAR NULL
-resolution_reason TEXT NULL
-resolved_at TIMESTAMPTZ NULL
-version BIGINT NOT NULL
-```
+Tipos: TOW_TRUCK_BREAKDOWN, DELAYED_ARRIVAL, LOADING_DELAY y TRANSPORT_DELAY. Estado PROCESSING/RESOLVED. Los resultados los determina SYSTEM, sin endpoint de resolución. Una avería exige coordenadas; las demoras son generadas por tareas y no requieren subject humano. generated_key deduplica tipo/asignación; una única recuperación por solicitud se protege transaccionalmente.
 
 ### PendingFleetAction → pending_fleet_actions
 
@@ -243,7 +224,7 @@ completed_at TIMESTAMPTZ NULL
 version BIGINT NOT NULL
 ```
 
-action_type: RESERVE, CONFIRM, RELEASE o MARK_OUT_OF_SERVICE. Los campos obligatorios dependen de la acción y se validan. Estado PENDING, COMPLETED o NEEDS_ATTENTION; un agotamiento de reintentos no se descarta silenciosamente: permanece visible para diagnóstico y reconciliación. Las dependencias entre acciones se resuelven con reglas explícitas: primero marcar avería y liberar; luego buscar otra grúa. No se confirma una reserva tras cancelar su solicitud.
+action_type: RESERVE, CONFIRM, RELEASE o MARK_OUT_OF_SERVICE. Los campos obligatorios dependen de la acción y se validan. Estado PENDING, COMPLETED o RETRYING; los efectos inciertos se reconcilian automáticamente sin descartarse ni exigir aprobación humana. Las dependencias entre acciones se resuelven con reglas explícitas: primero marcar avería y liberar; luego buscar otra grúa. No se confirma una reserva tras cancelar su solicitud.
 
 Se guarda la intención en una transacción local, se llama a Fleet fuera de ella y se confirma el resultado en otra transacción. La tarea consulta resultados ante respuestas perdidas. Un reinicio no puede perder una reserva creada después de cancelarse: antes de cerrar la recuperación se consulta/libera el intento idempotente correspondiente.
 
@@ -341,9 +322,9 @@ operation_key deduplica la comunicación de avería desde Assistance incluso si 
 
 - @Version detecta actualizaciones concurrentes sobre una misma fila; por sí solo no impide dos INSERT de reservas distintas.
 - Reservar requiere una transacción local: bloquear operador y grúa en orden fijo, revalidar datos, comprobar ausencia de reservas activas e insertar. Todos los caminos que reservan/confirman/liberan deben respetar el mismo protocolo.
-- La exclusividad puede reforzarse mediante índices únicos parciales PostgreSQL por recurso para HELD/CONFIRMED; es una ampliación de SQL, no una característica portable generada por @UniqueConstraint.
+- La exclusividad puede reforzarse mediante índices únicos parciales PostgreSQL por recurso para HELD/CONFIRMED; no es una característica portable generada por @UniqueConstraint.
 - Para crear una solicitud se bloquea su Vehicle y se verifica ausencia de otra activa dentro de la misma transacción. Puede reforzarse con índice parcial. El patrón consultar y luego guardar sin control no basta.
-- Una sola incidencia bloqueante OPEN y una sola petición de cancelación OPEN por solicitud; el servicio bloquea/versiona la solicitud para coordinar esos comandos.
+- Una sola recuperación de avería PROCESSING por solicitud; bloqueo/versionado e idempotencia impiden duplicar reasignaciones. Cancelación y primera aceptación comparten control transaccional; una confirmación remota incierta bloquea cancelar hasta reconciliar.
 - CHECK para pesos/capacidades positivos, coordenadas válidas y fechas coherentes; NOT NULL, FK, UNIQUE y longitudes explícitos.
 - Índices de consulta: solicitud por driver/status/fecha, asignación por operator/status, historial por request/fecha, reserva por status/expires_at, acciones pendientes por status/next_attempt_at.
 - Las transacciones no mantienen bloqueos mientras se espera una respuesta HTTP. @Transactional coordina una base local; no hace rollback de una llamada remota que ya tuvo éxito.
@@ -368,7 +349,6 @@ Evaluation → AssistanceRequest
 CandidateEvaluation → Evaluation
 RequestStatusHistory → AssistanceRequest
 Incident → AssistanceRequest, Assignment
-CancellationRequest → AssistanceRequest
 PendingFleetAction → AssistanceRequest, Assignment, Incident opcional
 
 FLEET
@@ -379,21 +359,16 @@ TruckStatusHistory → TowTruck
 
 Las flechas representan referencias locales N→1. Las reservas apuntan por ID externo a la solicitud y Assistance apunta por IDs externos a Fleet. Keycloak no tiene FKs hacia ninguna base funcional.
 
-## 8. Ajustes necesarios por las reglas fijas AR-MVP-1
+## 8. Ajustes necesarios por las reglas fijas AR-MVP-3
 
-Este apartado completa el esquema lógico anterior sin agregar nuevas bases ni microservicios:
+- Vehicle incorpora brand/model y restricciones de tipo, patente y peso.
+- AssistanceRequest conserva first_assigned_at, origen original como retiro, última ubicación y cierre. El origen/destino y snapshot de vehículo son inmutables. search_attempt_number admite 1..3; cada apertura registra plazo en historial. Se conserva snapshot de parámetros, no solo su versión.
+- Assignment persiste antes del HTTP; accepted_at procede de confirmed_at durable. Incorporar reserved_at, dispatched_at, arrived_at, loaded_at, transport_started_at, completed_at y planned_arrival_at. Cada sustitución conserva las fechas del intento previo. La primera aceptación se copia a la solicitud una sola vez.
+- Evaluation conserva coordenadas del retiro vigente y destino, reglas, ruta y route_obtained_at. CandidateEvaluation conserva valores crudos/ajustados y fecha de ubicación. El resultado de recuperación distingue ruta imposible de dependencia temporal.
+- ResourceReservation incluye search_deadline_at y hold_seconds_requested; expires_at se calcula en Fleet con el menor plazo. La confirmación durable no se convierte en vencida por recuperar tarde su respuesta.
+- Incident no almacena responsable de decisión, custodia ni datos de corrección. Su estado es técnico/automático, no una aprobación pendiente.
+- Historial incluye operation_key única en su ámbito y la etapa/ubicación al cerrar UNFULFILLED después de una ejecución iniciada.
+- PendingFleetAction mantiene explícitos los datos de compatibilidad, ruta, plazo y operación. Se confirma MARK_OUT_OF_SERVICE y RELEASE antes de reservar reemplazo; la nueva búsqueda comienza después de esa limpieza.
+- Un estado terminal no elimina tareas ni habilita nueva solicitud sobre el vehículo mientras existan efectos inciertos. La liberación no reactiva la grúa.
 
-- Vehicle: agregar brand y model; tipos cerrados CAR/SUV/PICKUP y CHECK de peso entre 500 y 3.000 kg. Patente normalizada con longitud de 6 a 10.
-- AssistanceRequest: agregar access_conditions_confirmed, search_started_at, search_attempt_number (1..3), search_deadline, rules_version y snapshot de centro/radio y límites de rutas. Estas columnas reemplazan cualquier referencia previa a un rectángulo. Se guarda el inicio/plazo de cada búsqueda también en historial para conservar intentos anteriores.
-- Assignment: accepted_at debe provenir de la confirmación durable de Fleet; agregar dispatched_at y planned_arrival_at o guardar esos instantes en el historial de transición con acceso inequívoco. La cantidad de propuestas se deriva de las reservas efectivamente creadas; incluir reserved_at al recuperar una reserva aunque la respuesta inicial se haya perdido. AssignmentAttemptId persiste antes del HTTP.
-- Evaluation: snapshot de reglas AR-MVP-1, centro/radio, distancias máximas/mínimas, factor 1,25 y márgenes; agregar route_obtained_at y coordenadas exactas utilizadas (origen/destino), además de las de grúa en CandidateEvaluation. Guardar los valores individuales, no solo un nombre de versión, para poder auditar.
-- CandidateEvaluation: conservar distancias, duraciones crudas y ajustadas, fecha de obtención, llegada planificada y fin estimado. Guardar soportes de tipo/condición, cobertura y motivo que determinaron compatibilidad. La evaluación puede representar candidatos no evaluables temporalmente sin tratarlos como no elegibles permanentes.
-- ResourceReservation: agregar search_deadline_at y hold_seconds_requested; expires_at se calcula en Fleet como min(now + plazo ofrecido, search_deadline_at). La confirmación debe quedar con confirmed_at, aun si se pierde la respuesta. La API devuelve ese instante.
-- Incident: tipo del catálogo determina blocking; agregar generated_key UNIQUE NULL para demoras automáticas por solicitud/asignación/etapa y evitar duplicación. Puede derivarse prioridad de suspended_at sin persistir otra verdad duplicada.
-- Historial: registrar en details correcciones, revisión de datos, apertura de nuevo intento, snapshots de plazos y constancias de aviso. Las transiciones idempotentes requieren operation_key UNIQUE dentro de su ámbito para devolver el resultado anterior.
-- PendingFleetAction: persistir los datos necesarios del snapshot de compatibilidad/ruta y search_deadline de una reserva para que el reintento no dependa de campos que ya cambiaron. Las columnas son explícitas; no se introduce un payload genérico.
-- El chequeo de nueva solicitud debe impedirla también si la anterior es terminal pero conserva reserva/confirmación incierta o liberación pendiente. Esta condición no se resuelve solo con el índice de solicitudes activas.
-
-En Fleet la confirmación revalida contra su reloj y conserva la confirmación exitosa; una consulta posterior al plazo no la transforma en vencida. Reservas CONFIRMED no expiran automáticamente. Solicitudes terminales no eliminan sus tareas de limpieza.
-
-El detalle de clases/columnas es un diseño previo a implementación. El DDL y los DTO finales deben incorporar estas precisiones antes de comenzar a programar el flujo.
+No se crean tablas para peticiones de cancelación, suspensiones, custodia, decisiones humanas ni roles. El DDL definitivo debe concretar nulos, longitudes, checks e índices de estas reglas antes de implementarse.

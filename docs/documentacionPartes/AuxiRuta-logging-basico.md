@@ -27,8 +27,8 @@ Los IDs del negocio permiten buscar mensajes relacionados sin implementar todav�
 | Nivel | Cuándo se usa | Ejemplo |
 |---|---|---|
 | INFO | Evento relevante completado o decisión del negocio | Solicitud creada, asignación confirmada, cambio de estado |
-| WARN | Problema recuperable o situación operativa excepcional | Timeout remoto, reserva en conflicto, incidencia bloqueante |
-| ERROR | Fallo técnico inesperado o recuperación que necesita intervención | Error de persistencia, configuración inválida, acción NEEDS_ATTENTION |
+| WARN | Problema recuperable o situación operativa excepcional | Timeout remoto, reserva en conflicto, avería con sustitución automática |
+| ERROR | Fallo técnico inesperado o recuperación técnica pendiente | Error de persistencia, configuración inválida, acción RETRYING |
 | DEBUG | Detalle para investigar un problema | Cantidad de candidatos y tiempos de consultas |
 
 Un rechazo previsto del negocio no es ERROR. Un timeout con reintento previsto normalmente es WARN. El mismo error no debe registrarse con stack trace en cada capa.
@@ -52,9 +52,9 @@ INFO  assistance-service Evaluación finalizada requestId=R123 result=VIABLE can
 INFO  fleet-service Reserva creada assignmentId=A10 reservationId=RES7 truckId=G12
 INFO  assistance-service Estado actualizado requestId=R123 from=AWAITING_ACCEPTANCE to=ASSIGNED
 WARN  assistance-service Consulta de rutas agotó timeout requestId=R123 retryScheduled=true
-WARN  assistance-service Incidencia bloqueante registrada requestId=R123 type=TOW_TRUCK_BREAKDOWN
+WARN  assistance-service Avería registrada requestId=R123 type=TOW_TRUCK_BREAKDOWN
 INFO  fleet-service Reserva liberada reservationId=RES7 reason=REASSIGNMENT
-ERROR assistance-service Recuperación requiere intervención requestId=R123 actionId=ACT9
+ERROR assistance-service Recuperación técnica pendiente requestId=R123 actionId=ACT9
 ```
 
 Un mensaje “confirmado” solo se emite tras confirmar el resultado local/remoto correspondiente. Si una respuesta se perdió se registra “resultado incierto”, y después su recuperación. El log no debe afirmar una transacción exitosa antes del commit.
@@ -76,4 +76,6 @@ Un mensaje “confirmado” solo se emite tras confirmar el resultado local/remo
 4. Verificar que los logs no contengan credenciales, tokens ni datos personales completos.
 5. Reiniciar aplicaciones y verificar que la verdad del negocio y acciones pendientes se recuperen desde PostgreSQL, sin depender de conservar logs.
 
-Estos son criterios de verificación del logging elegido por el equipo; no sustituyen los escenarios funcionales de AR-MVP-1.
+Estos son criterios de verificación del logging elegido por el equipo; no sustituyen los escenarios funcionales de AR-MVP-3.
+
+Las incidencias y sustituciones son automáticas. Un error de infraestructura puede exigir mantenimiento técnico; los logs no habilitan al administrador a elegir estados, aprobar cancelaciones ni descartar reservas inciertas. Las demoras informativas no requieren revisión humana.
