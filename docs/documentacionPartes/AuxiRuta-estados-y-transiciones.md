@@ -2,7 +2,7 @@
 
 > Línea base vigente: **AR-MVP-5**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
 
-### 6.1 Solicitud
+## Solicitud
 
 | Estado | Significado | Destinos permitidos |
 |---|---|---|
@@ -24,7 +24,7 @@ CANCELLED solo es alcanzable si nunca existió una asignación aceptada, incluso
 
 Cada transición registra estado anterior/nuevo, instante, actor y motivo. Las automáticas usan actor SYSTEM. Un estado terminal no libera por sí mismo reservas remotas pendientes. No hay endpoint genérico de modificación de estado.
 
-### 6.2 Vehículo, grúa, operador y reserva
+## Vehículo, grúa, operador y reserva
 
 | Concepto | Estados / valores | Semántica |
 |---|---|---|

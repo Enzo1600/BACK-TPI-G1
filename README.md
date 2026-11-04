@@ -19,7 +19,8 @@ Documento principal: **[Decisiones arquitectónicas](docs/DECISIONES_ARQUITECTON
 | [Parámetros del MVP](docs/documentacionPartes/AuxiRuta-parametros-MVP.yml) | Valores de referencia para configurar los servicios |
 | [Estados y transiciones](docs/documentacionPartes/AuxiRuta-estados-y-transiciones.md) | Solicitud, vehículo, grúa y reserva |
 | [Operaciones por rol y alcance](docs/documentacionPartes/AuxiRuta-operaciones-por-rol-y-alcance-MVP.md) | Endpoints propuestos, permisos y funcionalidades incluidas/excluidas |
-| [Modelo persistente](docs/documentacionPartes/AuxiRuta-modelo-persistente-MVP.md) | Entidades y tablas; incluye ajustes por las reglas AR-MVP-5 |
+| [Modelo persistente](docs/documentacionPartes/AuxiRuta-modelo-persistente-MVP.md) | Entidades y tablas consolidadas de AR-MVP-5 |
+| [DER editable](docs/diagramas/AuxiRuta_DER.md) | Atributos, relaciones y cardinalidades de las bases funcionales |
 | [Logging básico](docs/documentacionPartes/AuxiRuta-logging-basico.md) | Eventos, niveles, protección de datos y retención de logs |
 
 DECISIONES_ARQUITECTONICAS.md constituye la referencia consolidada vigente. Los documentos parciales se conservan como material de detalle; ante contradicciones prevalece la especificación consolidada. Los parámetros deben coincidir con la línea base AR-MVP-5 allí definida.
@@ -40,3 +41,11 @@ DECISIONES_ARQUITECTONICAS.md constituye la referencia consolidada vigente. Los 
 ## Estado del proyecto
 
 El repositorio contiene el diseño y la documentación. Los proyectos ejecutables, contratos OpenAPI e infraestructura todavía deben implementarse. La fuente C1/C2 vigente está disponible en `docs/diagramas/AuxiRuta_C1_C2.md`; los PNG previos son históricos. Los próximos pasos están detallados en el documento de contexto.
+
+## Demostración temporal prevista
+
+El perfil `demo` reducirá los plazos de búsqueda, aceptación y despacho para la demostración, conservando los cupos. Los [parámetros de referencia](docs/documentacionPartes/AuxiRuta-parametros-demo.yml) complementan los valores normales. Las pruebas de límites utilizarán Clock controlado. Esta configuración está documentada y pendiente de integrar en las aplicaciones.
+
+## Preparación para implementar
+
+Revisión documental del 4 de noviembre de 2026 completada, versión 2.5, sin cambiar AR-MVP-5. El [contexto del proyecto](docs/documentacionPartes/AuxiRuta-contexto-proyecto.md#preparación-para-la-construcción--revisión-del-4-de-noviembre-de-2026) detalla el orden de construcción y las verificaciones pendientes del entorno, contratos, persistencia, seguridad y API externa. Los requisitos están contemplados en el diseño; su cumplimiento se demostrará con ejecución y pruebas.

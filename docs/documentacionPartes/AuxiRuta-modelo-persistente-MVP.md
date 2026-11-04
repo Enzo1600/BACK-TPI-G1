@@ -4,7 +4,7 @@
 
 ## 1. Alcance del modelo
 
-El modelo comprende siete entidades de Assistance, cuatro de Fleet y una tabla auxiliar de tipos de vehículo admitidos. Keycloak administra su propio esquema. Se conserva trazabilidad de evaluaciones, reservas y recuperación de operaciones. Los snapshots son columnas, la habilitación actual pertenece a Operator, el vínculo actual pertenece a TowTruck y los parámetros se distribuyen mediante configuración.
+El modelo comprende siete entidades de Assistance, cuatro de Fleet y una tabla auxiliar de tipos de vehículo admitidos. Keycloak administra su propio esquema. Se conserva trazabilidad de evaluaciones, reservas y recuperación de operaciones. Los datos evaluados se conservan en columnas y los parámetros efectivos en un snapshot serializado, la habilitación actual pertenece a Operator, el vínculo actual pertenece a TowTruck y los parámetros se distribuyen mediante configuración.
 
 La cancelación previa a primera aceptación se registra en AssistanceRequest e historial; no tiene entidad de petición o autorización. No hay campos de custodia, responsable humano de resolución ni estado suspendido.
 
@@ -32,6 +32,8 @@ Registro del vehículo. No implica acreditación legal de propiedad.
 id UUID PK
 owner_subject VARCHAR NOT NULL
 license_plate VARCHAR UNIQUE NOT NULL
+brand VARCHAR NULL
+model VARCHAR NULL
 vehicle_type VARCHAR NOT NULL
 declared_weight_kg DECIMAL NOT NULL
 registration_status VARCHAR NOT NULL
@@ -50,10 +52,6 @@ vehicle_id UUID FK → vehicles NOT NULL
 driver_subject VARCHAR NOT NULL
 status VARCHAR NOT NULL
 first_assigned_at TIMESTAMPTZ NULL
-last_vehicle_latitude DECIMAL NOT NULL
-last_vehicle_longitude DECIMAL NOT NULL
-last_vehicle_location_at TIMESTAMPTZ NOT NULL
-execution_started_at TIMESTAMPTZ NULL
 closure_reason_code VARCHAR NULL
 origin_latitude DECIMAL NOT NULL
 origin_longitude DECIMAL NOT NULL
@@ -63,10 +61,11 @@ declared_vehicle_type VARCHAR NOT NULL
 declared_weight_kg DECIMAL NOT NULL
 mobility_condition VARCHAR NOT NULL
 
-description TEXT
+description VARCHAR(1000) NOT NULL
 search_attempt_number INTEGER NOT NULL
 search_deadline TIMESTAMPTZ NOT NULL
 configuration_revision VARCHAR NOT NULL
+configuration_snapshot TEXT NOT NULL
 idempotency_key VARCHAR NOT NULL
 request_fingerprint VARCHAR NOT NULL
 created_at TIMESTAMPTZ NOT NULL
@@ -76,7 +75,9 @@ version BIGINT NOT NULL
 UNIQUE(driver_subject, idempotency_key)
 ```
 
-Los datos del vehículo se copian al crear y no se corrigen durante el servicio. first_assigned_at se fija con la primera confirmación durable de Fleet y nunca se borra al reasignar. El retiro siempre coincide con el origen original; no existen ubicaciones alternativas. La última ubicación conocida se actualiza con hechos declarados (llegada, carga o entrega), sin GPS continuo. request_fingerprint distingue reintentos de creación incompatibles.
+Los datos del vehículo se copian al crear y no se corrigen durante el servicio. first_assigned_at se fija con la primera confirmación durable de Fleet y nunca se borra al reasignar. El retiro siempre coincide con el origen original; no existen ubicaciones alternativas. request_fingerprint distingue reintentos de creación incompatibles.
+
+configuration_snapshot conserva los parámetros efectivos como JSON serializado en una columna TEXT, sin requerir consultas JSON ni una entidad adicional. La revisión sola no basta para reconstruir una decisión. El snapshot es inmutable y se usa también después de reiniciar o cambiar la configuración. Las evaluaciones referencian esta solicitud y conservan los datos concretos de cada cálculo.
 
 No es necesario guardar resourceReleasePending como otra verdad duplicada: la respuesta puede calcularlo desde las acciones de liberación pendientes.
 
@@ -93,13 +94,22 @@ tow_truck_id UUID NOT NULL
 operator_id UUID NOT NULL
 operator_subject VARCHAR NOT NULL
 status VARCHAR NOT NULL
-proposed_at TIMESTAMPTZ NOT NULL
+created_at TIMESTAMPTZ NOT NULL
+reserved_at TIMESTAMPTZ NULL
+proposed_at TIMESTAMPTZ NULL
 expires_at TIMESTAMPTZ NULL
 accepted_at TIMESTAMPTZ NULL
+dispatched_at TIMESTAMPTZ NULL
+arrived_at TIMESTAMPTZ NULL
+loaded_at TIMESTAMPTZ NULL
+transport_started_at TIMESTAMPTZ NULL
+completed_at TIMESTAMPTZ NULL
 ended_at TIMESTAMPTZ NULL
 end_reason TEXT NULL
 version BIGINT NOT NULL
 ```
+
+created_at se registra antes de llamar a Fleet; reserved_at y proposed_at solo se completan cuando existe reserva y se publica la propuesta. accepted_at copia confirmed_at de Fleet; first_assigned_at de la solicitud se fija una sola vez. Las fechas de ejecución pertenecen a la asignación que las produjo.
 
 Estados: RESERVATION_PENDING → PROPOSED → ACCEPTED → CLOSED. Una reserva en conflicto puede terminar RESERVATION_FAILED; una propuesta puede terminar REJECTED, EXPIRED o CANCELLED. Una asignación aceptada termina CLOSED al completar el servicio o sustituirse antes del despacho. RESERVATION_PENDING evita perder el rastro si Fleet reserva pero se pierde la respuesta. La solicitud permanece en su etapa de evaluación/búsqueda hasta que la reserva se confirme y pasa entonces a AWAITING_ACCEPTANCE.
 
@@ -111,6 +121,14 @@ Cabecera de cada intento, resultado y snapshot de datos y parámetros.
 id UUID PK
 request_id UUID FK → assistance_requests NOT NULL
 search_attempt_number INTEGER NOT NULL
+origin_latitude DECIMAL NOT NULL
+origin_longitude DECIMAL NOT NULL
+destination_latitude DECIMAL NOT NULL
+destination_longitude DECIMAL NOT NULL
+transport_distance_m DECIMAL NULL
+transport_duration_seconds DECIMAL NULL
+adjusted_transport_seconds INTEGER NULL
+route_obtained_at TIMESTAMPTZ NULL
 
 vehicle_type VARCHAR NOT NULL
 declared_weight_kg DECIMAL NOT NULL
@@ -127,7 +145,7 @@ reason_detail TEXT NULL
 evaluated_at TIMESTAMPTZ NOT NULL
 ```
 
-coverage_and_admission_summary conserva límites de cobertura y admisión usados con una representación legible acordada. Si necesitan consultarlos numéricamente, se convierten en columnas individuales; no hace falta un motor de configuración histórica.
+coverage_and_admission_summary registra el resultado legible de admisión. Los valores normativos se recuperan del snapshot inmutable de la solicitud. route_obtained_at y la ruta de traslado pueden ser NULL mientras no haya respuesta válida; una evaluación pendiente no inventa valores. Cada ronda puede generar otra Evaluation dentro del mismo search_attempt_number.
 
 ### CandidateEvaluation → candidate_evaluations
 
@@ -149,9 +167,13 @@ compatible BOOLEAN NOT NULL
 eligible BOOLEAN NOT NULL
 reason_code VARCHAR NULL
 approach_distance_m DECIMAL NULL
-approach_duration_seconds INTEGER NULL
+approach_duration_seconds DECIMAL NULL
+adjusted_approach_seconds INTEGER NULL
+approach_route_obtained_at TIMESTAMPTZ NULL
 transport_distance_m DECIMAL NULL
-transport_duration_seconds INTEGER NULL
+transport_duration_seconds DECIMAL NULL
+adjusted_transport_seconds INTEGER NULL
+transport_route_obtained_at TIMESTAMPTZ NULL
 estimated_service_end_at TIMESTAMPTZ NULL
 ranking_position INTEGER NULL
 ```
@@ -169,11 +191,14 @@ actor_subject VARCHAR NULL
 actor_type VARCHAR NOT NULL
 reason TEXT NULL
 details TEXT NULL
+operation_key VARCHAR NULL
+request_fingerprint VARCHAR NULL
 correlation_id VARCHAR NULL
 occurred_at TIMESTAMPTZ NOT NULL
+UNIQUE(request_id, operation_key)
 ```
 
-details conserva aperturas de búsqueda y plazos; las acciones automáticas utilizan actor_type SYSTEM y actor_subject NULL. La creación registra previous_status NULL. Los logs técnicos no reemplazan la auditoría funcional.
+operation_key identifica transiciones idempotentes dentro de cada solicitud; request_fingerprint permite rechazar la reutilización de una clave con otro contenido. Los eventos automáticos pueden carecer de clave. No se registra un cierre UNFULFILLED después de DISPATCHED. details conserva aperturas de búsqueda y plazos; las acciones automáticas utilizan actor_type SYSTEM y actor_subject NULL. La creación registra previous_status NULL. Los logs técnicos no reemplazan la auditoría funcional.
 
 ### PendingFleetAction → pending_fleet_actions
 
@@ -187,6 +212,11 @@ assignment_id UUID FK → assignments NOT NULL
 action_type VARCHAR NOT NULL
 tow_truck_id UUID NOT NULL
 operator_id UUID NULL
+vehicle_type VARCHAR NULL
+declared_weight_kg DECIMAL NULL
+mobility_condition VARCHAR NULL
+search_deadline_at TIMESTAMPTZ NULL
+hold_seconds_requested INTEGER NULL
 estimated_service_end_at TIMESTAMPTZ NULL
 reason TEXT NULL
 status VARCHAR NOT NULL
@@ -199,7 +229,7 @@ completed_at TIMESTAMPTZ NULL
 version BIGINT NOT NULL
 ```
 
-action_type: RESERVE, CONFIRM o RELEASE. Los campos obligatorios dependen de la acción y se validan. Estado PENDING, COMPLETED o RETRYING; los efectos inciertos se reconcilian automáticamente sin descartarse ni exigir aprobación humana. Una nueva reserva requiere liberación confirmada del compromiso anterior. No se confirma una reserva tras cancelar su solicitud.
+action_type: RESERVE, CONFIRM o RELEASE. RESERVE exige recursos, compatibilidad, plazo y fin estimado; CONFIRM exige el fin estimado revalidado; RELEASE identifica el intento y motivo. Los datos de cada acción son inmutables y suficientes para reconstruir su DTO de integración después de un reinicio. Los campos obligatorios dependen de la acción y se validan. Estado PENDING, COMPLETED o RETRYING; los efectos inciertos se reconcilian automáticamente sin descartarse ni exigir aprobación humana. Una nueva reserva requiere liberación confirmada del compromiso anterior. No se confirma una reserva tras cancelar su solicitud.
 
 Se guarda la intención en una transacción local, se llama a Fleet fuera de ella y se confirma el resultado en otra transacción. La tarea consulta resultados ante respuestas perdidas. Un reinicio no puede perder una reserva creada después de cancelarse: antes de cerrar la recuperación se consulta/libera el intento idempotente correspondiente.
 
@@ -252,7 +282,7 @@ vehicle_type VARCHAR
 PK(tow_truck_id, vehicle_type)
 ```
 
-Se implementa como colección de enums con @ElementCollection, una ampliación pequeña del mapeo visto. Si prefieren evitarla, una entidad de compatibilidad con ID propio y @ManyToOne a TowTruck permite usar únicamente el patrón N→1 enseñado.
+Se implementa como colección de enums con @ElementCollection y @CollectionTable. No tiene identidad ni ciclo de vida independientes de TowTruck; la clave compuesta impide tipos duplicados.
 
 ### ResourceReservation → resource_reservations
 
@@ -265,6 +295,8 @@ operator_id UUID FK → operators NOT NULL
 status VARCHAR NOT NULL
 held_at TIMESTAMPTZ NOT NULL
 expires_at TIMESTAMPTZ NOT NULL
+search_deadline_at TIMESTAMPTZ NOT NULL
+hold_seconds_requested INTEGER NOT NULL
 estimated_service_end_at TIMESTAMPTZ NOT NULL
 confirmed_at TIMESTAMPTZ NULL
 released_at TIMESTAMPTZ NULL
@@ -333,15 +365,12 @@ TruckStatusHistory → TowTruck
 
 Las flechas representan referencias locales N→1. Las reservas apuntan por ID externo a la solicitud y Assistance apunta por IDs externos a Fleet. Keycloak no tiene FKs hacia ninguna base funcional.
 
-## 8. Ajustes necesarios por las reglas fijas AR-MVP-5
+## 8. Diagrama y condiciones de implementación
 
-- Vehicle incorpora brand/model y restricciones de tipo, patente y peso.
-- AssistanceRequest conserva first_assigned_at, origen original como retiro, última ubicación y cierre. El origen/destino y snapshot de vehículo son inmutables. search_attempt_number admite 1..3; cada apertura registra plazo en historial. Se conserva snapshot de parámetros, no solo su versión.
-- Assignment persiste antes del HTTP; accepted_at procede de confirmed_at durable. Incorporar reserved_at, dispatched_at, arrived_at, loaded_at, transport_started_at, completed_at. Cada sustitución conserva las fechas del intento previo. La primera aceptación se copia a la solicitud una sola vez.
-- Evaluation conserva coordenadas del retiro vigente y destino, reglas, ruta y route_obtained_at. CandidateEvaluation conserva valores crudos/ajustados y fecha de ubicación. El resultado de recuperación distingue ruta imposible de dependencia temporal.
-- ResourceReservation incluye search_deadline_at y hold_seconds_requested; expires_at se calcula en Fleet con el menor plazo. La confirmación durable no se convierte en vencida por recuperar tarde su respuesta.
-- Historial incluye operation_key única en su ámbito y la etapa/ubicación al cerrar UNFULFILLED después de una ejecución iniciada.
-- PendingFleetAction mantiene explícitos los datos de compatibilidad, ruta, plazo y operación. Se confirma RELEASE antes de reservar otro recurso; la nueva búsqueda comienza después de esa limpieza.
-- Un estado terminal no elimina tareas ni habilita nueva solicitud sobre el vehículo mientras existan efectos inciertos. La liberación no modifica el estado operativo de la grúa.
+El [DER editable](../diagramas/AuxiRuta_DER.md) representa estas entidades, atributos y cardinalidades. Las imágenes bd1.png y bd2.png se conservan como antecedentes; no sustituyen esta definición consolidada.
 
-No se crean tablas para peticiones de cancelación, suspensiones, custodia, decisiones humanas ni roles. El DDL definitivo debe concretar nulos, longitudes, checks e índices de estas reglas antes de implementarse.
+- search_attempt_number admite 1..3. El historial conserva cada apertura y su plazo.
+- El vencimiento de una reserva se calcula en Fleet con el menor plazo entre retención y búsqueda. Una confirmación durable válida no pasa a vencida por recuperarse tarde su respuesta.
+- Las acciones pendientes sobreviven al cierre. Ninguna nueva reserva se inicia antes de confirmar la liberación anterior; la siguiente búsqueda comienza después de esa limpieza.
+- No se crean tablas para peticiones de cancelación, suspensiones, custodia, decisiones humanas ni roles.
+- Antes de implementar cada entidad se concreta su DDL: longitudes, precisión decimal, nulos, checks e índices. El esquema debe coincidir con el mapeo y verificarse con ddl-auto=validate.

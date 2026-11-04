@@ -81,7 +81,7 @@ Gateway incluye org.springframework.cloud:spring-cloud-starter-gateway-server-we
 
 Commons utiliza solamente lo necesario para sus clases: spring-web para ProblemDetail, spring-security-core para authorities y spring-security-oauth2-jose para Jwt. Sus versiones se administran con Boot. No incluye un starter de servidor ni entidades/repositorios de negocio. Los adaptadores de seguridad servlet/reactivos quedan en sus aplicaciones.
 
-Lombok, DevTools y dependencias de tests son opcionales según su uso. El requisito es verificar el funcionamiento de la solución; no se transforma lo visto en tests en una nueva obligación de la cátedra.
+Lombok y DevTools son opcionales. Las aplicaciones incorporan spring-boot-starter-test y spring-security-test con scope test y versiones administradas por Boot, para verificar decisiones de negocio y seguridad junto con la colección funcional.
 
 No se incluyen en el compromiso base Actuator, Resilience4j, Flyway/Liquibase, Kafka/RabbitMQ, Eureka, Config Server ni plataformas de logs. Tampoco se usa un adaptador Java específico de Keycloak: se integra con los estándares OAuth2/OIDC y JWT.
 
@@ -285,40 +285,18 @@ Valores principales: radio 15 km desde (-31.4167, -64.1833); vehículos CAR/SUV/
 11. Logging básico incluido por decisión del equipo: SLF4J/Logback a consola, IDs de solicitud/asignación/reserva, niveles y retención Docker. Ver AuxiRuta-logging-basico.md. Sin tablas adicionales, Actuator ni stack externo obligatorio. El historial persistente sigue separado.
 12. Cada cambio relevante actualiza las reglas, contratos y C2 afectados. El equipo debe poder explicar y modificar el código presentado.
 13. Scripts .sh con LF en Windows; .gitattributes declara *.sh text eol=lf. .gitignore excluye target/, .env y archivos de IDE apropiados.
-14. Probar idempotencia, concurrencia, plazos y recuperación con casos funcionales; los tests automatizados se incorporan cuando aporten evidencia útil, sin inflar el compromiso académico.
+14. Implementar pruebas automatizadas de decisiones relevantes: límites, autorización, transiciones, idempotencia y exclusividad. Complementar con una colección funcional de extremo a extremo.
 
-Este archivo contiene decisiones del proyecto, no impone pedir aprobación para cada edición rutinaria. El uso como GEMINI.md, AGENTS.md u otro archivo de instrucciones se decide al configurar la herramienta; la entrega actual es un documento de contexto y no instala reglas en un repositorio.
-
-## 9. Diferencias respecto del ejemplo y decisiones anteriores
-
-| Tema | Decisión de AuxiRuta |
-|---|---|
-| Dominio | Asistencia vehicular y reservas exclusivas, sin pilotos ni planes de vuelo |
-| Coordenadas Maven | com.auxiruta y cuatro artefactos propios |
-| API externa | OpenRouteService; sin Open-Meteo ni Overpass |
-| Cobertura | Círculo comercial de 15 km, reemplaza el rectángulo de la primera propuesta |
-| Servicio técnico | Cliente Assistance → Fleet y rol FLEET_SERVICE |
-| Retorno de cambios de Fleet | Sondeo desde Assistance, sin callback inverso |
-| Migraciones | SQL controlado + validate; Flyway opcional, no incluido |
-| Resiliencia | Timeouts y recuperación idempotente; Resilience4j opcional |
-| Seguridad de issuer | Se conserva validación; no se utiliza el fallback de desactivarla |
-| Infraestructura | Dockerfile por ejecutable; infraestructura todavía pendiente |
-| Monitoreo | Opcional, sin agregarlo como criterio del TPI |
-| Multimódulo | No se utiliza inicialmente por decisión propia; no se atribuye su prohibición a la cátedra |
-| Estado del trabajo | Diseño y documentos disponibles; todavía sin backend implementado |
-
-El ejemplo de SkyClear se utiliza como referencia de organización. Sus instrucciones para una IA, su estado de avance, versiones alternativas y cambios de documentos no se aplican automáticamente a AuxiRuta.
-
-## 10. Estado real y próximos pasos
+## 9. Estado real y próximos pasos
 
 - [x] Dominio, microservicios y roles definidos.
 - [x] Reglas AR-MVP-5 y valores concretos documentados.
 - [x] Estados, operaciones y alcance del MVP documentados.
-- [x] Modelo persistente propuesto, con ajustes por reglas fijas.
+- [x] Modelo persistente consolidado y DER editable disponibles.
 - [x] Decisiones técnicas de este documento preparadas para implementar.
 - [ ] Construir contratos OpenAPI de ambos servicios y revisarlos contra las reglas.
 - [x] Archivos C1 y C2 disponibles en docs/diagramas/.
-- [ ] Revisar su correspondencia con el diseño final y completar el diagrama de datos.
+- [x] Revisar C1/C2 y completar el [DER editable](../diagramas/AuxiRuta_DER.md); contrastar nuevamente con la implementación final.
 - [ ] Crear los proyectos Maven y comprobar resolución de dependencias/versiones.
 - [ ] Implementar auxiruta-commons e instalarlo en .m2.
 - [ ] Preparar PostgreSQL, SQL de inicialización y realm de Keycloak; verificar emisión/validación de JWT con emisor y audiencias.
@@ -330,7 +308,7 @@ El ejemplo de SkyClear se utiliza como referencia de organización. Sus instrucc
 - [ ] Implementar el logging básico según AuxiRuta-logging-basico.md.
 - [ ] Completar Dockerfiles/Compose, documentación y colección funcional; verificar arranque reproducible con volumen vacío y reinicio conservando datos.
 
-Pendientes técnicos que no deben darse por probados: parche exacto de Temurin, versiones del entorno Docker/Compose, URL vigente y cuotas de la cuenta OpenRouteService, configuración real de audiencias/redirect URIs, mecanismo SQL/JPA de exclusividad y pasos de actualización del esquema con datos existentes.
+Pendientes técnicos que no deben darse por probados: parche exacto de Temurin, versiones del entorno Docker/Compose, cuotas de la cuenta y llamada real a OpenRouteService (URL definida en la sección 8.1 de las decisiones arquitectónicas), configuración real de audiencias/redirect URIs, mecanismo SQL/JPA de exclusividad y pasos de actualización del esquema con datos existentes.
 
 ## Referencias técnicas utilizadas
 
@@ -354,3 +332,31 @@ Si se agotan las reasignaciones, vence la búsqueda o se agotan sus propuestas s
 Una vez en DISPATCHED no se reasigna ni se cancela el servicio: el operador registra llegada, carga, traslado y entrega. Se conservan el origen, el destino y los datos declarados.
 
 El sistema opera para una única empresa. El alta de operadores requiere identidad en Keycloak, rol OPERATOR, perfil en Fleet, habilitación y vínculo con grúa administrados. No hay registro libre de prestadores. ADMIN administra recursos libres y consulta; no dirige servicios ni fuerza estados. Los diagramas vigentes son [C1 y C2](../diagramas/AuxiRuta_C1_C2.md).
+
+## Preparación para la construcción — revisión del 4 de noviembre de 2026
+
+El dominio y la arquitectura permiten iniciar una construcción incremental. La línea funcional continúa en AR-MVP-5; la revisión documental no agrega funcionalidades ni cambia plazos o cupos. Ningún requisito se declara implementado mientras falte su evidencia ejecutable.
+
+### Verificaciones técnicas iniciales
+
+| Área | Situación y siguiente comprobación |
+|---|---|
+| Java | Se detectó Oracle JDK 21.0.3 en el entorno local. Coincide con la versión mayor; la imagen Temurin 21 del despliegue todavía debe fijarse y verificarse. No se modifica la instalación durante esta revisión. |
+| Maven | Se detectó Maven 3.10.0 global. Crear Wrapper 3.9.11 y usarlo para que la compilación no dependa de esa instalación global. |
+| Docker | No se encontró el ejecutable en PATH ni en la ruta habitual de Docker Desktop. Verificar instalación, motor y Compose antes del despliegue; esta observación no prueba ausencia en todas las ubicaciones. |
+| Dependencias | Versiones declaradas contrastadas con referencias oficiales; todavía no hay pom.xml para demostrar resolución, compilación o arranque. |
+| Rutas externas | Usar la URL vigente de la sección 8.1 del documento principal; verificar clave, cuota de la cuenta y un trayecto real de Córdoba. No se realizó una llamada autenticada durante esta revisión. |
+| Identidad | Crear realm, clientes, roles y mappers; verificar token humano y técnico, issuer, audiencia y permisos. |
+| Persistencia | Materializar el modelo en SQL/JPA y verificar exclusividad sobre PostgreSQL real; no basta probar sobre H2. |
+
+### Orden de implementación y evidencia
+
+1. Preparar proyectos Maven, Wrapper, dependencias y compilación de los cuatro artefactos. Instalar commons como JAR normal.
+2. Construir infraestructura mínima PostgreSQL/Keycloak/Gateway y un recorrido protegido de Fleet, con casos 200, 401 y 403.
+3. Completar contratos de cada incremento, DTOs, DDL y repositorios. Verificar propiedad con 404 uniforme y listado filtrado.
+4. Implementar vehículo y solicitud, el adaptador real de rutas y la consulta/reserva en Fleet. Probar exclusividad antes de añadir más estados.
+5. Completar aceptación, despacho, ejecución y entrega; demostrar liberación de ambos recursos y persistencia del historial.
+6. Implementar vencimientos, sustituciones previas al despacho, cancelación permitida y recuperación tras respuestas perdidas. Incorporar perfil demo y Clock controlado en pruebas.
+7. Verificar arranque completo con Compose, reinicio con datos, colección parametrizada y pruebas automatizadas; actualizar OpenAPI, diagramas y evidencias de cada requisito.
+
+La complejidad principal está en concurrencia, aceptación/cancelación y recuperación entre bases. Se resuelve con transacciones locales, identificación idempotente y tareas persistentes; no requiere agregar brokers, transacciones distribuidas ni servicios nuevos. El equipo debe poder explicar y probar esos mecanismos.

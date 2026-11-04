@@ -14,7 +14,7 @@ AuxiRuta administra solicitudes inmediatas de traslado de vehículos livianos pa
 
 ADMIN no es un permiso universal: no puede aceptar propuestas, registrar etapas por otro operador, cancelar solicitudes ajenas, elegir una grúa ni forzar estados. Si una persona reúne varios roles, cada operación sigue exigiendo la propiedad o asignación del rol correspondiente. La identidad procede del subject del JWT.
 
-### 2.1 Supuestos y exclusiones
+### Supuestos y exclusiones
 
 Se asumen correctos los datos declarados del vehículo, accesible el punto de retiro y disponible el destino. Los operadores pueden cumplir su tarea sin imprevistos personales. El alta de operadores es administrada por la empresa: se crea su identidad en Keycloak, se asigna OPERATOR y se registra en Fleet su perfil, habilitación y vínculo con una grúa. No existe registro libre de prestadores independientes. La habilitación y disponibilidad se controlan para admitir cada asignación; el vencimiento durante una ejecución ya despachada no requiere una decisión humana. Se conserva el snapshot utilizado y la exclusividad del recurso hasta liberar.
 
@@ -43,7 +43,7 @@ El Gateway constituye infraestructura y no cuenta como uno de los dos microservi
 
 ## Colaboración
 
-### 7.1 Solicitud, evaluación y asignación
+### Solicitud, evaluación y asignación
 
 1. Assistance valida identidad, propiedad, entrada y exclusividad local; persiste REQUESTED con la intención de evaluar.
 2. Valida alcance y consulta la ruta origen-destino. Un incumplimiento confirmado termina REJECTED; una falla temporal conserva evaluación pendiente.
@@ -56,9 +56,9 @@ El Gateway constituye infraestructura y no cuenta como uno de los dos microservi
 
 Fleet conserva la autoridad sobre disponibilidad y Assistance sobre el resultado de la solicitud. La participación de ambos es necesaria para producir una asignación válida; no se trata de dos catálogos independientes.
 
-### 7.2 Búsqueda alternativa anterior al despacho
+### Búsqueda alternativa anterior al despacho
 
-Si vence el plazo de despacho o no se confirma elegibilidad para despachar, Assistance cierra la asignación con motivo y conserva firstAssignedAt. Persiste RELEASE, consulta Fleet ante respuestas perdidas y espera confirmación de liberación antes de intentar reservar otra pareja.
+Si vence el plazo de despacho o se confirma una pérdida de elegibilidad antes de despachar, Assistance cierra la asignación con motivo y conserva firstAssignedAt. Persiste RELEASE, consulta Fleet ante respuestas perdidas y espera confirmación de liberación antes de intentar reservar otra pareja.
 
 Si queda cupo se abre automáticamente la siguiente búsqueda con origen y destino originales; de lo contrario se termina UNFULFILLED. El conductor no recupera el permiso de cancelar. Tras DISPATCHED solo continúa la secuencia de ejecución.
 
@@ -70,7 +70,7 @@ El cliente recibe coordenadas WGS84 y las adapta al orden [longitud, latitud]. U
 
 La ausencia confirmada de ruta origen-destino rechaza la solicitud en la admisión inicial; una reevaluación de sustitución inviable termina UNFULFILLED. Ausencia de ruta hacia un candidato lo descarta. Timeout, cuota agotada o indisponibilidad no equivalen a ausencia de ruta y no habilitan aprobación a ciegas.
 
-No se presupone tránsito en tiempo real, acceso garantizado de vehículos pesados ni certificación de transitabilidad. El acceso al vehículo y la recepción en destino se asumen posibles dentro del alcance evaluativo. La URL vigente y las cuotas de la cuenta deben verificarse al construir el adaptador. La clave permanece fuera del repositorio y la comunicación con el proveedor utiliza HTTPS.
+No se presupone tránsito en tiempo real, acceso garantizado de vehículos pesados ni certificación de transitabilidad. El acceso al vehículo y la recepción en destino se asumen posibles dentro del alcance evaluativo. La URL de referencia, cuotas y clasificación de errores se definen en la sección 8.1 del documento consolidado; la cuenta se verifica al construir el adaptador. La clave permanece fuera del repositorio y la comunicación con el proveedor utiliza HTTPS.
 
 ## Arquitectura
 

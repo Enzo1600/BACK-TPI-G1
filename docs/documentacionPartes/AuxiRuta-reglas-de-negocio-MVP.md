@@ -194,4 +194,8 @@ La validación debe cubrir una historia completa: registro de vehículo, solicit
 | Logging | Eventos relevantes localizables por ID, niveles coherentes y ausencia de secretos/datos sensibles |
 | Despliegue | Arranque con volumen vacío, reinicio conservando datos y procedimientos de actualización documentados |
 
-Los tests automatizados pueden aportar evidencia cuando sean útiles; no se presume una cobertura o suite inexistente. Las comprobaciones temporales pueden usar Clock inyectado. Los criterios deben mantenerse sincronizados con cada cambio de reglas.
+Se implementarán pruebas automatizadas significativas para límites, transiciones, autorización, idempotencia y exclusividad, además de la colección de demostración integral. Las pruebas temporales utilizarán Clock inyectado. No se exige un porcentaje arbitrario de cobertura ni se presume una suite existente. Los criterios deben mantenerse sincronizados con cada cambio de reglas.
+
+## Demostración y pruebas temporales
+
+Los plazos normales de AR-MVP-5 permanecen vigentes. El perfil demo aplica los [overrides de demostración](AuxiRuta-parametros-demo.yml): búsqueda 60 s, propuesta 10 s, ventana mínima 3 s, despacho 20 s y revisión de búsqueda 2 s. Mantiene los cupos originales y usa snapshots AR-MVP-5-DEMO. Para verificar límites exactos se utiliza Clock inyectable y controlado en tests. La especificación completa está en la sección 5.12 del documento consolidado. Implementación pendiente.

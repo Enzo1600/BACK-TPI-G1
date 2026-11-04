@@ -3,7 +3,7 @@
 | Atributo | Valor |
 |---|---|
 | Sistema | AuxiRuta |
-| Versión documental | 2.3 |
+| Versión documental | 2.5 |
 | Fecha | 4 de noviembre de 2026 |
 | Línea base funcional | AR-MVP-5 |
 | Estado | Diseño definido; implementación pendiente |
@@ -144,7 +144,7 @@ Los starters Boot usan groupId `org.springframework.boot`; el de Gateway, `org.s
 
 RestClient se obtiene a través de Spring Web. La integración de Keycloak usa estándares OAuth2/OIDC y JWT, sin adaptador específico del proveedor. El Gateway no incorpora MVC, JPA ni lógica bloqueante de asignación.
 
-Lombok, DevTools y herramientas de tests se incorporan cuando resulten útiles. Actuator, Resilience4j, Flyway/Liquibase, brokers, service discovery, configuración centralizada y stacks de observabilidad quedan fuera de la línea base.
+Las aplicaciones incorporan spring-boot-starter-test y spring-security-test con scope test; sus versiones son administradas por Boot. Lombok y DevTools son opcionales. Actuator, Resilience4j, Flyway/Liquibase, brokers, service discovery, configuración centralizada y stacks de observabilidad quedan fuera de la línea base.
 
 ## 5. Restricciones del dominio AR-MVP-5
 
@@ -300,6 +300,24 @@ Descripción de solicitud: 10 a 1.000 caracteres. Motivos de rechazo/cancelació
 
 La creación exige Idempotency-Key de hasta 100 caracteres, única por conductor y conservada con la solicitud. No se admite estado, propietario o grúa elegida arbitrariamente en la entrada. Una solicitud terminal no se reabre; la creación de otra requiere ausencia de compromisos anteriores inciertos o pendientes sobre el vehículo.
 
+### 5.12 Demostración temporal y pruebas
+
+Se define un perfil `demo` para observar vencimientos en Postman o Swagger con plazos reducidos. Su implementación queda pendiente junto con los servicios. El perfil normal conserva AR-MVP-5 y sus valores; el perfil demo identifica sus snapshots como `AR-MVP-5-DEMO` y se utiliza exclusivamente en demostraciones.
+
+| Parámetro | Normal | Demo |
+|---|---|---|
+| Intento de búsqueda | 600 s | 60 s |
+| Ventana máxima de propuesta | 60 s | 10 s |
+| Ventana mínima para ofrecer | 15 s | 3 s |
+| Plazo para despacho | 300 s | 20 s |
+| Revisión de búsquedas | 30 s | 2 s |
+
+Los cupos de cinco propuestas, cinco candidatos por ronda y dos reasignaciones se mantienen. El resto de los parámetros conserva los valores normales: el perfil reduce plazos de espera, no escala el tiempo global ni los tiempos de viaje, carga o descarga. El perfil debe activarse de manera coherente en ambos servicios; Fleet sigue recibiendo y verificando los deadlines de Assistance. Cada solicitud conserva los parámetros efectivos utilizados, sin alterar solicitudes ya existentes al cambiar el perfil.
+
+Los overrides de referencia están en [Parámetros demo](documentacionPartes/AuxiRuta-parametros-demo.yml). Deben integrarse en la configuración real al implementar; guardarlos en docs no activa un perfil. El README de ejecución deberá indicar cómo activar `SPRING_PROFILES_ACTIVE=demo` y cómo volver al perfil normal.
+
+El código temporal usa un `Clock` inyectado. En ejecución normal y demo se utiliza hora real UTC; en tests se controla el reloj para verificar límites sin esperas reales. La prueba avanza el reloj e invoca explícitamente el procesamiento de vencimientos: cambiar la hora simulada no dispara por sí solo el scheduler. Las pruebas integradas deben controlar coherentemente los relojes de ambos servicios. No se modifica la hora del sistema operativo ni se agregan endpoints públicos para manipularla.
+
 ## 6. Estados y transiciones
 
 ### 6.1 Solicitud
@@ -357,7 +375,7 @@ Fleet conserva la autoridad sobre disponibilidad y Assistance sobre el resultado
 
 ### 7.2 Búsqueda alternativa anterior al despacho
 
-Si vence el plazo de despacho o no se confirma elegibilidad para despachar, Assistance cierra la asignación con motivo y conserva firstAssignedAt. Persiste RELEASE, consulta Fleet ante respuestas perdidas y espera confirmación de liberación antes de intentar reservar otra pareja.
+Si vence el plazo de despacho o se confirma una pérdida de elegibilidad antes de despachar, Assistance cierra la asignación con motivo y conserva firstAssignedAt. Persiste RELEASE, consulta Fleet ante respuestas perdidas y espera confirmación de liberación antes de intentar reservar otra pareja.
 
 Si queda cupo se abre automáticamente la siguiente búsqueda con origen y destino originales; de lo contrario se termina UNFULFILLED. El conductor no recupera el permiso de cancelar. Tras DISPATCHED solo continúa la secuencia de ejecución.
 
@@ -369,7 +387,19 @@ El cliente recibe coordenadas WGS84 y las adapta al orden [longitud, latitud]. U
 
 La ausencia confirmada de ruta origen-destino rechaza la solicitud en la admisión inicial; una reevaluación de sustitución inviable termina UNFULFILLED. Ausencia de ruta hacia un candidato lo descarta. Timeout, cuota agotada o indisponibilidad no equivalen a ausencia de ruta y no habilitan aprobación a ciegas.
 
-No se presupone tránsito en tiempo real, acceso garantizado de vehículos pesados ni certificación de transitabilidad. El acceso al vehículo y la recepción en destino se asumen posibles dentro del alcance evaluativo. La URL vigente y las cuotas de la cuenta deben verificarse al construir el adaptador. La clave permanece fuera del repositorio y la comunicación con el proveedor utiliza HTTPS.
+No se presupone tránsito en tiempo real, acceso garantizado de vehículos pesados ni certificación de transitabilidad. El acceso al vehículo y la recepción en destino se asumen posibles dentro del alcance evaluativo. La sección 8.1 fija la URL de referencia y el tratamiento de cuotas; la cuenta y la llamada real se verifican al construir el adaptador. La clave permanece fuera del repositorio y la comunicación con el proveedor utiliza HTTPS.
+
+### 8.1 Contrato y límites del proveedor
+
+El adaptador utilizará `ORS_BASE_URL=https://api.heigit.org/openrouteservice/v2` y `POST /directions/driving-car/geojson`, con API key en la cabecera Authorization, coordenadas en orden [longitud, latitud] y respuesta métrica. La geometría y los puntos ajustados se utilizan para comprobar el ajuste máximo a la red vial; no se persiste el JSON remoto completo. La URL anterior api.openrouteservice.org está deprecada.
+
+La referencia pública de Directions indica 2.000 consultas por ventana de 24 horas y 40 por ventana móvil de 60 segundos. Son cuotas del proveedor, no reglas de negocio; se deben contrastar con la cuenta utilizada antes de la primera integración real. La cuota diaria no se presupone reiniciada a medianoche.
+
+Assistance centraliza el presupuesto de llamadas y reutiliza rutas únicamente bajo las condiciones de vigencia definidas. La ruta origen-destino se consulta una vez por evaluación vigente, no una vez por candidato. El perfil demo tampoco acelera las cuotas del proveedor. Ante agotamiento, se difiere la consulta sin extender el plazo de búsqueda; al vencer se aplica el cierre por dependencia, nunca una ruta ficticia.
+
+El adaptador distingue cuota diaria (puede responder 403), límite por minuto (429), credencial inválida y ausencia de ruta mediante el código y contenido documentados del proveedor. Respeta Retry-After y, cuando estén disponibles, las cabeceras de cuota/reset. Un error desconocido permanece como falla técnica, sin inferir ausencia de ruta. Las pruebas automatizadas usan respuestas controladas; la demostración de integración incluye al menos una consulta real.
+
+Referencias verificadas el 4 de noviembre de 2026: [cambio de URL de HeiGIT](https://ask.openrouteservice.org/t/deprecating-api-openrouteservice-org-in-favour-of-api-heigit-org/7912) y [cuotas y códigos de respuesta](https://giscience.github.io/openrouteservice/frequently-asked-questions).
 
 ## 9. Consistencia, concurrencia y recuperación
 
@@ -387,7 +417,7 @@ La clave de creación y la huella de entrada se conservan por conductor. Repetir
 
 Las acciones hacia Fleet son RESERVE, CONFIRM y RELEASE. Se persisten con datos explícitos y estado PENDING, COMPLETED o RETRYING. No se implementa un motor genérico de eventos ni un broker.
 
-Una respuesta perdida exige consultar por assignmentAttemptId antes de generar otro intento. Los procesos pendientes revalidan la solicitud antes de ejecutar; no confirman una solicitud cancelada. La limpieza de una reserva incierta continúa aunque haya vencido el plazo comercial. No se elimina la intención hasta resolver posibles efectos remotos.
+Una respuesta perdida exige consultar por assignmentAttemptId antes de generar otro intento. Un GET que devuelve 404 no demuestra por sí solo que una reserva incierta nunca se creará. En recuperación se repite el PUT original con el mismo identificador y contenido hasta obtener un resultado durable y, si la solicitud ya cerró, se libera ese mismo intento. Fleet no reactiva un intento RELEASED/EXPIRED ante una repetición tardía del PUT. Esta compensación no publica otra propuesta ni permite confirmar una solicitud cerrada. Los procesos pendientes revalidan la solicitud antes de ejecutar; no confirman una solicitud cancelada. La limpieza de una reserva incierta continúa aunque haya vencido el plazo comercial. No se elimina la intención hasta resolver posibles efectos remotos.
 
 Una solicitud cerrada con liberación pendiente expone resourceReleasePending. Los recursos siguen ocupados y el vehículo no admite nueva solicitud hasta confirmar su liberación. Una acción incierta permanece RETRYING y se reconcilia automáticamente cada 60 s, sin aprobación operativa humana ni descarte silencioso. Una falla permanente de infraestructura o credenciales exige mantenimiento técnico; ningún rol puede aprobar efectos remotos desconocidos.
 
@@ -401,7 +431,7 @@ Una solicitud cerrada con liberación pendiente expone resourceReleasePending. L
 | Reintentos posteriores | Cada 60 s mientras haya incertidumbre pendiente |
 | Espera por 429 sin Retry-After | 60 s |
 
-Se realiza una llamada por intento y no se repiten escrituras inmediatamente. Toda escritura reintentada debe contar con identificación idempotente. HTTP 429 respeta Retry-After. Un 401/403 técnico requiere corregir credenciales/permisos y no debe generar una secuencia de reintentos indiscriminada. Los conflictos de dominio se distinguen de fallas de red.
+Se realiza una llamada por intento y no se repiten escrituras inmediatamente. Toda escritura reintentada debe contar con identificación idempotente. HTTP 429 respeta Retry-After. Un error confirmado de credenciales/permisos requiere corrección técnica y no genera reintentos indiscriminados. En OpenRouteService, 403 también puede significar cuota diaria agotada; se clasifica según la sección 8.1. Los conflictos de dominio se distinguen de fallas de red.
 
 Reconciliación, vencimientos y evaluaciones se ejecutan mediante tareas programadas. Los endpoints aplican también las condiciones temporales; no dependen de que una tarea haya corrido exactamente en el instante de vencimiento. Se contempla una instancia ejecutable por servicio; la coordinación de múltiples réplicas queda fuera del MVP.
 
@@ -460,7 +490,7 @@ La siguiente tabla define los registros lógicos; los tipos, longitudes y restri
 | Servicio | Entidad / tabla | Información persistente |
 |---|---|---|
 | Assistance | Vehicle / vehicles | ID, propietario subject, patente normalizada, marca/modelo, tipo, peso, estado de registro, fechas y versión |
-| Assistance | AssistanceRequest / assistance_requests | Vehículo, conductor, estado, origen/destino originales, origen y destino originales, datos declarados inmutables, firstAssignedAt, intento/plazos, versión y snapshot de reglas, idempotencia/huella y motivo de cierre |
+| Assistance | AssistanceRequest / assistance_requests | Vehículo, conductor, estado, origen y destino originales, datos declarados inmutables, firstAssignedAt, intento/plazos, versión y snapshot de reglas, idempotencia/huella y motivo de cierre |
 | Assistance | Assignment / assignments | Intento único, solicitud, candidato evaluado, IDs externos de recursos/reserva, subject del operador, estado, reserva/propuesta/aceptación/despacho y cierre |
 | Assistance | Evaluation / evaluations | Solicitud/intento/revisión, datos del vehículo, coordenadas usadas, parámetros efectivos, resultado/motivos y fecha de evaluación/obtención de ruta |
 | Assistance | CandidateEvaluation / candidate_evaluations | Recursos externos, capacidad/compatibilidades, habilitación usada, ubicación/fecha, resultados de cobertura/elegibilidad, rutas crudas y ajustadas, ranking y fin estimado |
@@ -474,7 +504,7 @@ La siguiente tabla define los registros lógicos; los tipos, longitudes y restri
 
 Los datos vigentes de habilitación y vínculo se guardan en Operator y TowTruck; las reservas/evaluaciones conservan los datos históricos usados. Un historial administrativo completo de renovaciones o vínculos no forma parte del MVP. Los cambios administrativos relevantes se registran en logs.
 
-Los snapshots no requieren una entidad adicional: son columnas de solicitud/evaluación/candidato. Las reglas no requieren tablas de configuración versionada. Tampoco se crean tablas para cada enum, DTO o rol humano.
+Los snapshots no requieren una entidad adicional: los datos evaluados son columnas de solicitud/evaluación/candidato y los parámetros efectivos se serializan en una columna TEXT de la solicitud, según el modelo persistente. Las reglas no requieren tablas de configuración versionada. Tampoco se crean tablas para cada enum, DTO o rol humano.
 
 ### 11.3 Mapeo y restricciones
 
@@ -556,14 +586,14 @@ La reserva recibe el deadline de búsqueda, datos necesarios de compatibilidad y
 | 400 | Entrada estructuralmente inválida |
 | 401 | Autenticación ausente, inválida o vencida |
 | 403 | Rol/permiso insuficiente |
-| 404 | Recurso inexistente o ajeno cuando se oculta su existencia |
+| 404 | Recurso inexistente o fuera del ámbito autorizado: mismo código y mensaje genérico |
 | 409 | Estado, concurrencia, exclusividad, duplicado o idempotencia incompatibles |
 | 500 | Fallo inesperado, con mensaje público controlado |
 | 503 | Dependencia indisponible cuando la acción no pudo aceptarse ni registrarse para recuperación |
 
 Los errores usan ProblemDetail y código funcional estable. Un resultado REJECTED/UNFULFILLED de una solicitud creada se consulta con éxito HTTP; el resultado del negocio no es un fallo del protocolo. No se devuelve un error que sugiera ausencia de efectos si ya existe una acción durable pendiente.
 
-Los contratos OpenAPI de ambos servicios deben incluir esquemas, parámetros, roles, ejemplos, respuestas y errores; springdoc publica especificación y Swagger UI. El Gateway enruta documentación por servicio para usuarios autenticados y excluye controladores internos de la especificación pública. Las URLs documentadas deben corresponder al acceso externo real.
+Los contratos OpenAPI de ambos servicios deben incluir esquemas, parámetros, roles, ejemplos, respuestas y errores; springdoc publica especificación y Swagger UI. El Gateway enruta la documentación por servicio. La especificación se obtiene con token y puede cargarse en Swagger UI local; no se presupone que una navegación del navegador adjunte automáticamente un bearer token. Los controladores internos se excluyen de la especificación pública. La publicación de una interfaz Swagger con login integrado se verificará al construirla, sin abrir las APIs de negocio. Las URLs documentadas deben corresponder al acceso externo real.
 
 ## 13. Componente común reutilizable
 
@@ -644,6 +674,8 @@ BACK-TPI-G1/
 │   ├── documentacionPartes/
 │   ├── diagramas/
 │   │   ├── AuxiRuta_C1_C2.md          [vigente; Mermaid]
+│   │   ├── AuxiRuta_DER.md            [vigente; Mermaid]
+│   │   ├── bd1.png / bd2.png          [antecedentes]
 │   │   ├── AuxiRuta_C1.png            [histórico]
 │   │   └── AuxiRuta_C2.png            [histórico]
 │   └── api/                         [por construir]
@@ -693,7 +725,22 @@ La validación debe cubrir una historia completa: registro de vehículo, solicit
 | Logging | Eventos relevantes localizables por ID, niveles coherentes y ausencia de secretos/datos sensibles |
 | Despliegue | Arranque con volumen vacío, reinicio conservando datos y procedimientos de actualización documentados |
 
-Los tests automatizados pueden aportar evidencia cuando sean útiles; no se presume una cobertura o suite inexistente. Las comprobaciones temporales pueden usar Clock inyectado. Los criterios deben mantenerse sincronizados con cada cambio de reglas.
+Se implementarán pruebas automatizadas significativas para límites, transiciones, autorización, idempotencia y exclusividad, además de la colección de demostración integral. Las pruebas temporales utilizarán Clock inyectado. No se exige un porcentaje arbitrario de cobertura ni se presume una suite existente. Los criterios deben mantenerse sincronizados con cada cambio de reglas.
+
+### 17.1 Evidencia observable del MVP
+
+Las rutas de negocio de esta tabla llevan prefijo `/api/v1`. Los casos de límites y fallos usan datos controlados; el recorrido integral incluye consumo real del proveedor. Cada evidencia se registra al ejecutarse, sin marcarla aprobada anticipadamente.
+
+| ID | Condición inicial | Acción | Resultado esperado y referencia |
+|---|---|---|---|
+| CV-01 | Entorno configurado y volúmenes vacíos | Construir y arrancar Compose; crear datos y reiniciar conservando volúmenes | Aplicaciones accesibles por Gateway, tres bases aisladas y datos conservados; sección 15 |
+| CV-02 | Vehículo propio y pareja grúa/operador elegible | Crear solicitud; aceptar propuesta; registrar dispatch, arrival, loading, transport-start y completion | COMPLETED, historial ordenado y reserva RELEASED con recursos libres; secciones 5.5, 5.7 y 5.9, endpoints de solicitud y asignación |
+| CV-03 | Dos conductores y un operador con tokens válidos | Consultar vehículo propio, ajeno e inexistente; repetir sin token y usar una operación ADMIN con rol DRIVER | 200 para propio, mismo 404 para ajeno/inexistente, 401 sin token y 403 por rol; GET /vehicles/{id}, administración Fleet y sección 10 |
+| CV-04 | Solicitud válida salvo un límite controlado | Evaluar puntos en el radio y fuera de él; rutas válidas y fuera de distancia; capacidad suficiente e insuficiente | Igualdades inclusivas aceptadas, incumplimiento de admisión REJECTED y candidato incompatible descartado; secciones 5.1–5.5 |
+| CV-05 | Solicitud sin aceptación y otra con firstAssignedAt registrado | Cancelar la primera; intentar cancelar la segunda, incluso durante reemplazo | Primera CANCELLED con liberación recuperable; segunda 409 y sin modificación; POST /assistance-requests/{id}/cancellations y sección 5.10 |
+| CV-06 | Clock controlado o perfil demo, propuesta y asignación pendientes | Alcanzar vencimiento de oferta, búsqueda y despacho; agotar dos reasignaciones | No se acepta exactamente en el límite; alternativa solo previa al despacho y UNFULFILLED al agotar límites; secciones 5.6–5.8 y 5.12 |
+| CV-07 | Dos solicitudes compiten por la misma pareja libre | Reservar concurrentemente; repetir creación con igual clave/cuerpo y luego con cuerpo distinto | Como máximo una reserva activa; reintento idéntico sin duplicación y conflicto para contenido distinto; PUT interno de reserva, POST de solicitud y sección 9.1 |
+| CV-08 | Operación remota con respuesta perdida o proveedor indisponible | Perder respuesta de confirmación/liberación, reiniciar y reconciliar; simular timeout y cuota del proveedor | Se conserva aceptación durable, no se duplica reserva, se completa liberación y no se inventa ruta; historial/logs permiten comprobarlo sin secretos; secciones 8, 9 y 14 |
 
 ## 18. Glosario
 
@@ -778,9 +825,9 @@ Los tests automatizados pueden aportar evidencia cuando sean útiles; no se pres
 | 1.0 | 2026-11-03 | Línea base histórica AR-MVP-1: consolidación inicial |
 | 2.0 | 2026-11-04 | AR-MVP-2: tres roles humanos, cancelación solo previa a primera aceptación, supuestos evaluativos, sustitución automática por avería incluso con carga y cierres sin evaluación humana; actualización de secciones 2–3, 5–12 y 15–18, parámetros, entidades, contratos y diagramas |
 | 2.1 | 2026-11-04 | AR-MVP-3: se excluyen averías durante IN_TRANSIT; sustituciones solo antes del traslado, origen inmutable, eliminación del retiro alternativo y actualización de estados, contratos, persistencia, parámetros y casos de aceptación |
-
 | 2.2 | 2026-11-04 | AR-MVP-4: simplificación del flujo operativo, ejecución continua desde DISPATCHED, búsquedas alternativas solo anteriores al despacho, alta administrada de operadores y sincronización integral del alcance |
-
 | 2.3 | 2026-11-04 | AR-MVP-5: eliminación de la detección automática de demoras, sus registros, endpoints, entidad y parámetros; conservación del historial de etapas con sus fechas |
+| 2.4 | 2026-11-04 | Perfil demo con plazos reducidos y pruebas con Clock; conserva las reglas y cupos de AR-MVP-5 para ejecución normal |
+| 2.5 | 2026-11-04 | Revisión de preparación: modelo persistente consolidado y DER editable, precisión de permisos y fallos de integración, cuotas/URL de rutas, pruebas y secuencia de construcción; sin cambio de reglas AR-MVP-5 |
 
-Toda revisión posterior debe agregar una entrada y precisar las secciones afectadas. Antes de declarar una capacidad implementada se deben registrar su evidencia y verificación. Las versiones exactas del entorno Java/Docker, la configuración efectiva de Keycloak, los contratos OpenAPI, las restricciones SQL y las cuotas del proveedor se completarán durante la construcción sin modificar silenciosamente esta línea base.
+Toda revisión posterior debe agregar una entrada y precisar las secciones afectadas. Antes de declarar una capacidad implementada se deben registrar su evidencia y verificación. Las versiones exactas del entorno Java/Docker, la configuración efectiva de Keycloak, los contratos OpenAPI, las restricciones SQL y la verificación de las cuotas de la cuenta se completarán durante la construcción sin modificar silenciosamente esta línea base.

@@ -2,13 +2,13 @@
 
 > Línea base vigente: **AR-MVP-5**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
 
-### 12.1 Convenciones
+## Convenciones
 
 El acceso público utiliza `/api/v1`, representaciones JSON, DTOs validados y ResponseEntity. Los listados tienen paginación y filtros. Los endpoints de consulta no cambian el estado. Las acciones específicas representan transiciones de negocio, sin permitir saltos arbitrarios.
 
 Los identificadores y las fechas de autoridad son del servidor. La API filtra por propietario/asignación salvo permisos globales expresos. Una operación idempotente devuelve su resultado durable y no repite efectos.
 
-### 12.2 Operaciones públicas
+## Operaciones públicas
 
 Las rutas son relativas a `/api/v1`. A = Assistance; F = Fleet. ADMIN posee consulta global y administración de recursos, sin heredar operaciones personales ni permisos técnicos. Los listados globales y su detalle se filtran según rol.
 
@@ -39,7 +39,7 @@ Las rutas son relativas a `/api/v1`. A = Assistance; F = Fleet. ADMIN posee cons
 
 No se implementan rutas públicas de reasignación manual, cancelación administrativa, petición de cancelación ni corrección de datos declarados. Tampoco hay edición libre del estado de una solicitud. La gestión de usuarios, contraseñas y roles pertenece a la consola de Keycloak; no se agrega un CRUD propio de identidad.
 
-### 12.3 Contrato interno de Fleet
+## Contrato interno de Fleet
 
 Estas rutas no utilizan el prefijo público y requieren autorización técnica:
 
@@ -55,7 +55,7 @@ Estas rutas no utilizan el prefijo público y requieren autorización técnica:
 
 La reserva recibe el deadline de búsqueda, datos necesarios de compatibilidad y fin estimado. La respuesta incluye identificadores, expiresAt y confirmedAt cuando corresponda. El consumidor define DTOs propios y no comparte entidades de Fleet.
 
-### 12.4 Respuestas, errores y documentación
+## Respuestas, errores y documentación
 
 | HTTP | Uso |
 |---|---|
@@ -66,14 +66,14 @@ La reserva recibe el deadline de búsqueda, datos necesarios de compatibilidad y
 | 400 | Entrada estructuralmente inválida |
 | 401 | Autenticación ausente, inválida o vencida |
 | 403 | Rol/permiso insuficiente |
-| 404 | Recurso inexistente o ajeno cuando se oculta su existencia |
+| 404 | Recurso inexistente o fuera del ámbito autorizado: mismo código y mensaje genérico |
 | 409 | Estado, concurrencia, exclusividad, duplicado o idempotencia incompatibles |
 | 500 | Fallo inesperado, con mensaje público controlado |
 | 503 | Dependencia indisponible cuando la acción no pudo aceptarse ni registrarse para recuperación |
 
 Los errores usan ProblemDetail y código funcional estable. Un resultado REJECTED/UNFULFILLED de una solicitud creada se consulta con éxito HTTP; el resultado del negocio no es un fallo del protocolo. No se devuelve un error que sugiera ausencia de efectos si ya existe una acción durable pendiente.
 
-Los contratos OpenAPI de ambos servicios deben incluir esquemas, parámetros, roles, ejemplos, respuestas y errores; springdoc publica especificación y Swagger UI. El Gateway enruta documentación por servicio para usuarios autenticados y excluye controladores internos de la especificación pública. Las URLs documentadas deben corresponder al acceso externo real.
+Los contratos OpenAPI de ambos servicios deben incluir esquemas, parámetros, roles, ejemplos, respuestas y errores; springdoc publica especificación y Swagger UI. La documentación protegida se obtiene con token y puede cargarse en Swagger UI local. Su enrutamiento y acceso están definidos en la sección 12 del documento consolidado; los controladores internos se excluyen de la especificación pública. Las URLs documentadas deben corresponder al acceso externo real.
 
 ## Actores, supuestos y exclusiones
 
@@ -87,7 +87,7 @@ AuxiRuta administra solicitudes inmediatas de traslado de vehículos livianos pa
 
 ADMIN no es un permiso universal: no puede aceptar propuestas, registrar etapas por otro operador, cancelar solicitudes ajenas, elegir una grúa ni forzar estados. Si una persona reúne varios roles, cada operación sigue exigiendo la propiedad o asignación del rol correspondiente. La identidad procede del subject del JWT.
 
-### 2.1 Supuestos y exclusiones
+## Supuestos y exclusiones
 
 Se asumen correctos los datos declarados del vehículo, accesible el punto de retiro y disponible el destino. Los operadores pueden cumplir su tarea sin imprevistos personales. El alta de operadores es administrada por la empresa: se crea su identidad en Keycloak, se asigna OPERATOR y se registra en Fleet su perfil, habilitación y vínculo con una grúa. No existe registro libre de prestadores independientes. La habilitación y disponibilidad se controlan para admitir cada asignación; el vencimiento durante una ejecución ya despachada no requiere una decisión humana. Se conserva el snapshot utilizado y la exclusividad del recurso hasta liberar.
 

@@ -1,0 +1,17 @@
+# Overrides de referencia; implementación pendiente.
+# Complementa AuxiRuta-parametros-MVP.yml; no reemplaza su configuración completa.
+# Aplicar coherentemente en Assistance y Fleet.
+spring:
+  config:
+    activate:
+      on-profile: demo
+auxiruta:
+  rules-version: AR-MVP-5-DEMO
+  search:
+    attempt-timeout-seconds: 60
+    evaluation-interval-seconds: 2
+    minimum-offer-window-seconds: 3
+  fleet:
+    hold-seconds: 10
+  execution:
+    dispatch-deadline-seconds: 20
