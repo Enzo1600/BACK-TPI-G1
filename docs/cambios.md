@@ -141,3 +141,70 @@ Las rutas están protegidas y enrutadas, pero sus controladores de negocio aún 
 - En la red privada, Fleet rechaza tokens humanos para endpoints internos y admite el cliente técnico hasta la resolución del recurso; Assistance rechaza esa audiencia técnica. Ambos aplican permisos aunque la petición no pase por Gateway.
 - La emisión de identidad exige ahora `sub`; los tres logins PKCE y el rechazo de un secreto técnico inválido se repitieron después de corregir el realm.
 - `.env`, `target/` y cachés Python excluidos de Git. Diagramas conservados. No se realizó commit ni push.
+
+
+## Fase 4 — Administración de flota — 7 de noviembre de 2026
+
+### Alcance y revisión de la fase anterior
+
+Se incorporó el [plan de diez fases](FASES_IMPLEMENTACION.md) proporcionado por el equipo. Esta etapa implementa el catálogo administrativo de Fleet. Las reservas corresponden a fase 7 y la búsqueda/elegibilidad a fase 6.
+
+Antes de modificar código se inició la infraestructura conservando sus volúmenes y se ejecutaron satisfactoriamente las 22 comprobaciones HTTP de la fase 3. Al incorporar GET /operators, su expectativa de regresión cambia de 404 a 200 para ADMIN; los casos de seguridad conservan sus resultados. Se corrigieron fragmentos con codificación dañada del README heredados de la fase anterior. Se amplió el manejo de errores de Fleet para responder 409 ante violaciones de unicidad y conflictos de concurrencia, sin devolver mensajes SQL.
+
+### Funcionalidades implementadas
+
+- ADMIN registra y consulta operadores, actualiza nombre/teléfono, activa/inactiva el registro y administra habilitaciones LIGHT_TOWING con fechas coherentes. El subject es inmutable y único. La identidad OPERATOR se prepara previamente en Keycloak; Fleet no crea usuarios ni administra roles, y la correspondencia del subject suministrado se verifica administrativamente en esa consola.
+- OPERATOR consulta su perfil por el sub del JWT y declara disponibilidad. Un perfil INACTIVE no puede pasar a AVAILABLE. Inactivar un perfil retira su disponibilidad. Repetir AVAILABLE no reinicia availableSince, evitando alterar el futuro criterio de antigüedad.
+- ADMIN registra grúas INACTIVE y administra patente, capacidad de 500 a 5.000 kg, tipos admitidos CAR/SUV/PICKUP y compatibilidad con vehículos no rodables. La patente se normaliza a mayúsculas sin espacios ni guiones y admite 6 a 10 caracteres alfanuméricos.
+- Los vínculos son exclusivos: una grúa por operador y un operador por grúa. Repetir el vínculo existente es válido; sustituirlo exige desvincular primero. La desvinculación repetida devuelve 204.
+- OPERATOR consulta únicamente su equipo vinculado y actualiza coordenadas. El servidor fija locationUpdatedAt. Las coordenadas deben ser geográficamente válidas; la cobertura comercial y la antigüedad para elegir candidatos se aplicarán en fase 6.
+- ADMIN cambia el estado operativo entre INACTIVE, ACTIVE y MAINTENANCE con motivo y encabezado Idempotency-Key. Cada transición produce un evento persistente. Repetir igual clave, recurso, actor y contenido devuelve exactamente ese evento, incluso si luego hubo otros cambios; no vuelve a aplicar el estado anterior. Reutilizar la clave con otra operación devuelve 409.
+- Los listados tienen página inicial 0, tamaño predeterminado 20 y máximo 100; admiten filtros registrationStatus u operationalStatus. GET /configuration/fleet expone los límites administrativos vigentes, sin secretos.
+
+### Explicación del código
+
+**Entidades y SQL.** Operator, TowTruck y TruckStatusHistory usan @Entity para mapear objetos a tablas. TowTruck contiene una referencia @ManyToOne LAZY al operador con columna UNIQUE, por lo que el vínculo es exclusivo aunque la navegación sea unidireccional. Los tipos compatibles se guardan mediante @ElementCollection en tow_truck_supported_types. Los enums se persisten como texto. UUID identifica cada registro; Instant representa fechas UTC; BigDecimal conserva precisión en capacidad y coordenadas. @Version mantiene la versión de cada fila para detectar escrituras concurrentes.
+
+El archivo fleet-service/src/main/resources/db/001-fleet-catalog.sql crea cuatro tablas con claves primarias, FK locales, unicidad, CHECK e índices. No existen FK hacia Keycloak. El perfil docker aplica este bootstrap aditivo con CREATE TABLE IF NOT EXISTS antes de que Hibernate ejecute ddl-auto=validate. Funciona con una base nueva y con la base vacía de fase 3, sin borrar el volumen. No es un motor de migraciones: futuros cambios de columnas exigirán scripts ALTER explícitos y ordenados; IF NOT EXISTS no corrige tablas incompatibles.
+
+**Repositorios.** Las interfaces JpaRepository proporcionan consultas y persistencia administradas por Spring Data. Las consultas de vínculo y subject permiten resolver el ámbito propio. @Lock(PESSIMISTIC_WRITE) obtiene bloqueos de fila durante una transacción. La vinculación bloquea primero grúa y luego operador; la unicidad SQL refuerza la exclusividad. Las lecturas que preceden a una actualización propia evitan reutilizar una entidad desactualizada antes de adquirir el bloqueo.
+
+**FleetService.** Contiene las reglas y los límites transaccionales con @Transactional. Las lecturas usan transacciones de solo lectura. El servicio recibe Clock por constructor para decidir fechas de forma comprobable; normaliza los instantes a microsegundos, la precisión de PostgreSQL, para que una respuesta idempotente coincida con la representación recuperada. Un proxy LAZY de Hibernate se inicializa/desenvuelve cuando el bloqueo devuelve un operador ya referenciado por una grúa; esto evita confundir campos del proxy con datos de la entidad.
+
+Los métodos flush fuerzan la detección de restricciones antes de construir la respuesta. Una excepción revierte la transacción. Los eventos de alta, habilitación y estado se registran en consola después del commit mediante TransactionSynchronization, evitando anunciar éxito si la transacción se revierte. El historial de estado se guarda en la misma transacción que la modificación de la grúa.
+
+**DTOs y controlador.** Los records de FleetDtos definen entradas y respuestas. Jakarta Validation comprueba nulos, longitudes, rangos y tipos antes del servicio. Se rechazan propiedades JSON desconocidas: enviar owner, version, estado inicial o fecha de ubicación no permite modificar campos del servidor. Los PATCH actualizan los campos no nulos suministrados; para vaciar el teléfono se usa cadena vacía. FleetController recibe @AuthenticationPrincipal Jwt para las operaciones personales, en lugar de aceptar un subject en la URL o el cuerpo. Responde 201 y Location al crear, 204 al desvincular y DTOs en consultas/modificaciones. Las entidades JPA nunca se serializan como contrato público.
+
+**Documentación REST.** OpenApiConfiguration declara Bearer JWT y servidor relativo al host del Gateway. Los endpoints incorporan descripción funcional, roles, parámetros y respuestas. El JSON está disponible con token en /docs/fleet/v3/api-docs. Las rutas personales devuelven 404 cuando falta perfil o equipo; ADMIN no hereda esos permisos.
+
+### Pruebas reproducibles
+
+```powershell
+docker compose up -d --build
+python infra/tests/verify_security.py
+python infra/tests/verify_fleet.py
+```
+
+verify_fleet.py realiza login real con PKCE y usa Gateway, Fleet y PostgreSQL. Mantiene datos identificados con patentes TEST; no borra filas de auditoría. Al finalizar deja las grúas creadas INACTIVE y sin vínculo y el operador demo UNAVAILABLE. Debe ejecutarse en el entorno local de pruebas: utiliza el perfil operator.demo y rechaza desvincular una grúa cuya patente no tenga el prefijo de prueba. Cada ejecución agrega grúas de prueba nuevas. No imprime ni guarda tokens.
+
+Las pruebas Java de FleetService usan un Clock fijo para comprobar fecha de ubicación, antigüedad de disponibilidad, rechazo de intervalos inválidos, perfil inexistente y repetición durable de estados. Las pruebas HTTP cubren ambos actores, endpoints administrativos/personales, normalización, duplicados, límites, propiedades desconocidas, idempotencia y dos vinculaciones simultáneas sobre PostgreSQL real.
+
+### Continuidad de las fases
+
+La administración queda operativa. La existencia de una identidad OPERATOR en Keycloak es una precondición administrativa; esta fase no agrega credenciales administrativas de Keycloak a Fleet. Registrar disponibilidad o activar una grúa no afirma que sea un candidato elegible: habilitación vigente, ubicación reciente, cobertura y compatibilidad se evaluarán en fase 6. Las restricciones por compromisos HELD/CONFIRMED se integrarán con las reservas en fase 7, usando un protocolo de bloqueo coherente para impedir cambios administrativos sobre recursos comprometidos. No hay un indicador editable o ficticio de ocupación en esta fase.
+
+
+Se deshabilitó el logger SQL SqlExceptionHelper: los mensajes de restricciones PostgreSQL pueden incluir valores personales de la fila. Los conflictos esperados se representan mediante 409 sin volcar esos valores; los fallos inesperados conservan el registro controlado de tipo de excepción.
+
+
+### Resultados observados
+
+- Construcción Docker de Fleet satisfactoria; 12 pruebas de commons y 10 de Fleet (5 de seguridad y 5 de reglas del catálogo), sin fallos.
+- 61 comprobaciones HTTP de administración de flota satisfactorias en la ejecución final, con tokens reales, Gateway y PostgreSQL. El número puede variar según exista previamente el perfil demo.
+- Carrera de vinculación: dos grúas intentaron vincularse al mismo operador y se obtuvo exactamente un 200 y un 409.
+- Repetición durable de un cambio operativo verificada antes y después de una transición posterior: se devolvió el mismo evento, sin revertir el estado actual.
+- Las 22 comprobaciones de regresión de fase 3 pasaron con el nuevo GET /operators autorizado devolviendo 200.
+- Reconstrucción/reinicio de Fleet: Hibernate validó el esquema y las cuatro tablas conservaron exactamente sus datos, comprobados mediante hashes ordenados antes/después, incluido el historial.
+- git diff --check sin errores. No se modificaron diagramas ni se realizó commit o push. Los contenedores quedan iniciados.
+
+Durante las pruebas se corrigió la lectura de un operador representado por proxy JPA al repetir su vínculo. También se alineó la precisión temporal de las respuestas con PostgreSQL para asegurar igualdad en reintentos. Son correcciones de esta fase; no modifican las reglas funcionales acordadas.

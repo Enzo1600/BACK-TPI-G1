@@ -133,3 +133,20 @@ La prueba realiza login PKCE, mantiene tokens en memoria y prueba el Gateway en 
 Los roles de acceso se aplican por método y ruta. Un JWT ausente o inválido recibe 401; un rol o cliente sin permiso recibe 403. Los recursos ajenos usarán 404 mediante la utilidad de propietario al implementar sus servicios. Las respuestas de error usan `application/problem+json`.
 
 La consulta JSON de OpenAPI requiere `Authorization: Bearer <token>` en `/docs/fleet/v3/api-docs` o `/docs/assistance/v3/api-docs`. Las aplicaciones conservan los puertos definidos en la fase 2. El Gateway transmite el Bearer original y cada servicio lo vuelve a verificar.
+
+
+## Administración de Fleet — fase 4
+
+`docker compose up -d --build` aplica el SQL aditivo de Fleet y valida el esquema existente. No es necesario borrar el volumen. La prueba `python infra/tests/verify_fleet.py` utiliza los usuarios demo, verifica el flujo y deja grúas de prueba INACTIVE y desvinculadas, con patentes TEST. El operador demo termina UNAVAILABLE. Ejecutarla sobre el entorno local destinado a pruebas.
+
+Para preparar recursos mediante API, usar un token ADMIN en Gateway y seguir este orden:
+
+1. Crear previamente en Keycloak una identidad con OPERATOR y copiar su ID (subject).
+2. POST /api/v1/operators con keycloakSubject, fullName y contactPhone opcional.
+3. PUT /api/v1/operators/{id}/qualification con category LIGHT_TOWING y validFrom/validUntil en ISO-8601 UTC; inicio estrictamente anterior a vencimiento.
+4. POST /api/v1/tow-trucks con licensePlate, maximumLoadKg, supportsNonRollable y supportedTypes (lista no vacía de CAR, SUV, PICKUP). Se crea INACTIVE.
+5. PUT /api/v1/tow-trucks/{id}/operator con operatorId.
+6. PATCH /api/v1/tow-trucks/{id}/operational-status con status ACTIVE y reason; enviar Idempotency-Key con una clave única de hasta 100 caracteres. La respuesta es el evento de historial persistido.
+7. Con token OPERATOR, PATCH /api/v1/operators/me/availability con status AVAILABLE y PUT /api/v1/tow-trucks/assigned-to-me/location con latitude/longitude. Las fechas son del servidor.
+
+Los contratos y tipos concretos se consultan en /docs/fleet/v3/api-docs con token. Una habilitación registrada o una grúa ACTIVE no garantizan elegibilidad: la selección de candidatos corresponde a la fase 6. Las reservas y restricciones sobre recursos comprometidos se incorporan en fase 7.

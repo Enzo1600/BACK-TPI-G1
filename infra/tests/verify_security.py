@@ -20,7 +20,7 @@ def check(path, status, role=None, method="GET", token=None):
             assert response.headers.get_content_type() == "application/problem+json"
             assert body["status"] == status
         else:
-            assert "openapi" in body
+            assert "openapi" in body or "content" in body
     print("OK", method, path, role or "no human role", status)
 
 for service in ["fleet", "assistance"]:
@@ -32,7 +32,7 @@ check("/api/v1/vehicles",403,"ADMIN",method="POST")
 check("/api/v1/operators/me",403,"ADMIN",method="PATCH")
 check("/internal/fleet/candidates",403,"ADMIN")
 check("/api/v1/vehicles",404,"DRIVER") # Authorized route, controller belongs to phase 5.
-check("/api/v1/operators",404,"ADMIN") # Authorized route, controller belongs to phase 4.
+check("/api/v1/operators",200,"ADMIN") # Fleet catalogue implemented in phase 4.
 check("/docs/fleet/v3/api-docs",401,token=identity.technical["access_token"])
 t = identity.tokens["DRIVER"].split(".")
 t[2] = ("A" if t[2][0] != "A" else "B") + t[2][1:]

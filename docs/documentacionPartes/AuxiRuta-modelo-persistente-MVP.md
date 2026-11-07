@@ -2,6 +2,8 @@
 
 > Línea base vigente: **AR-MVP-5**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
 
+Estado de construcción: la fase 4 implementa Operator, TowTruck, TruckStatusHistory y tow_truck_supported_types en Fleet. ResourceReservation corresponde a la fase 7. Las entidades de Assistance se incorporan desde la fase 5. El detalle de ejecución y pruebas se registra en [cambios](../cambios.md).
+
 ## 1. Alcance del modelo
 
 El modelo comprende siete entidades de Assistance, cuatro de Fleet y una tabla auxiliar de tipos de vehículo admitidos. Keycloak administra su propio esquema. Se conserva trazabilidad de evaluaciones, reservas y recuperación de operaciones. Los datos evaluados se conservan en columnas y los parámetros efectivos en un snapshot serializado, la habilitación actual pertenece a Operator, el vínculo actual pertenece a TowTruck y los parámetros se distribuyen mediante configuración.
