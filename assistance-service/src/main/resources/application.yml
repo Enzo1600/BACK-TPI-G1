@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: assistance-service
+server:
+  port: ${SERVER_PORT:8082}
+
+springdoc:
+  paths-to-match: /api/v1/**

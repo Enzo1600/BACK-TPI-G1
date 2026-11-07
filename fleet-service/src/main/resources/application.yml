@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: fleet-service
+server:
+  port: ${SERVER_PORT:8081}
+
+springdoc:
+  paths-to-match: /api/v1/**

@@ -1,0 +1,165 @@
+{
+  "realm": "auxiruta",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "DRIVER"
+      },
+      {
+        "name": "OPERATOR"
+      },
+      {
+        "name": "ADMIN"
+      },
+      {
+        "name": "FLEET_SERVICE"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "auxiruta-api",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [
+        "https://oauth.pstmn.io/v1/callback",
+        "http://127.0.0.1:8765/callback"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles",
+        "basic"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience-auxiruta-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "auxiruta-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "assistance-service",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${KEYCLOAK_CLIENT_SECRET}",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [
+        "roles",
+        "basic"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience-auxiruta-fleet",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "auxiruta-fleet",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "scopeMappings": [
+    {
+      "client": "auxiruta-api",
+      "roles": [
+        "DRIVER",
+        "OPERATOR",
+        "ADMIN"
+      ]
+    },
+    {
+      "client": "assistance-service",
+      "roles": [
+        "FLEET_SERVICE"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-assistance-service",
+      "enabled": true,
+      "serviceAccountClientId": "assistance-service",
+      "realmRoles": [
+        "FLEET_SERVICE"
+      ]
+    },
+    {
+      "username": "driver.demo",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Driver",
+      "lastName": "Demo",
+      "email": "driver@auxiruta.example",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_DRIVER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "DRIVER"
+      ]
+    },
+    {
+      "username": "operator.demo",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Operator",
+      "lastName": "Demo",
+      "email": "operator@auxiruta.example",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_OPERATOR_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "OPERATOR"
+      ]
+    },
+    {
+      "username": "admin.demo",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "Demo",
+      "email": "admin@auxiruta.example",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_ADMIN_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADMIN"
+      ]
+    }
+  ]
+}

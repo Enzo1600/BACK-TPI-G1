@@ -4,7 +4,7 @@
 
 Por decisión del equipo se incorporan logs básicos a Gateway, Assistance y Fleet. Es una ampliación elegida para diagnóstico, no un requisito adicional atribuido al enunciado del TPI.
 
-El backend todavía no está implementado. Este documento define lo que se implementará al crear los servicios; no afirma que ya se estén generando logs.
+La fase 3 implementa logs técnicos HTTP: método, estado y duración en Gateway (INFO) y microservicios (DEBUG), además de errores inesperados en los servicios. Los eventos e identificadores de negocio de este documento se incorporarán junto con sus funcionalidades. La ruta normalizada queda pendiente; por ahora no se registran URLs ni parámetros.
 
 Se utilizarán SLF4J y Logback mediante el logging incluido por los starters de Spring Boot. Las versiones quedan administradas por Boot. No hace falta agregar otro framework ni una base de datos.
 

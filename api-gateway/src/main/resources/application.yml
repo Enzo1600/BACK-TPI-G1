@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: api-gateway
+server:
+  port: ${SERVER_PORT:8000}

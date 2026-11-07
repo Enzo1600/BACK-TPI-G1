@@ -1,0 +1,102 @@
+name: auxiruta
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+x-jwt: &jwt
+  SPRING_PROFILES_ACTIVE: docker
+  KEYCLOAK_ISSUER_URI: http://localhost:8080/realms/auxiruta
+  KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/auxiruta/protocol/openid-connect/certs
+services:
+  postgres:
+    image: postgres:17.11
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Configurar .env}
+      ASSISTANCE_DB_PASSWORD: ${ASSISTANCE_DB_PASSWORD:?Configurar .env}
+      FLEET_DB_PASSWORD: ${FLEET_DB_PASSWORD:?Configurar .env}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Configurar .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/01-databases.sh:/docker-entrypoint-initdb.d/01-databases.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    logging: *logging
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.5
+    command: [start-dev, --import-realm]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Configurar .env}
+      KC_BOOTSTRAP_ADMIN_USERNAME: bootstrap-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?Configurar .env}
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:?Configurar .env}
+      DEMO_DRIVER_PASSWORD: ${DEMO_DRIVER_PASSWORD:?Configurar .env}
+      DEMO_OPERATOR_PASSWORD: ${DEMO_OPERATOR_PASSWORD:?Configurar .env}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?Configurar .env}
+    ports: ["127.0.0.1:8080:8080"]
+    volumes:
+      - ./infra/keycloak/auxiruta-realm.json:/opt/keycloak/data/import/auxiruta-realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000; printf \"GET /health/ready HTTP/1.0\\r\\n\\r\\n\" >&3; grep -q \"200 OK\" <&3'"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 30
+    logging: *logging
+  fleet-service:
+    build:
+      context: .
+      dockerfile: fleet-service/Dockerfile
+    environment:
+      <<: *jwt
+      DB_URL: jdbc:postgresql://postgres:5432/fleet_db
+      DB_USER: fleet_user
+      DB_PASSWORD: ${FLEET_DB_PASSWORD:?Configurar .env}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    logging: *logging
+  assistance-service:
+    build:
+      context: .
+      dockerfile: assistance-service/Dockerfile
+    environment:
+      <<: *jwt
+      DB_URL: jdbc:postgresql://postgres:5432/assistance_db
+      DB_USER: assistance_user
+      DB_PASSWORD: ${ASSISTANCE_DB_PASSWORD:?Configurar .env}
+      KEYCLOAK_TOKEN_URI: http://keycloak:8080/realms/auxiruta/protocol/openid-connect/token
+      KEYCLOAK_CLIENT_ID: assistance-service
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:?Configurar .env}
+      FLEET_URL: http://fleet-service:8081
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    logging: *logging
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    environment:
+      <<: *jwt
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    logging: *logging
+volumes:
+  postgres-data:
