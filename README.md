@@ -60,7 +60,7 @@ DECISIONES_ARQUITECTONICAS.md constituye la referencia consolidada vigente. Los 
 
 ## Estado del proyecto
 
-El repositorio contiene las fases 1 a 4: cuatro proyectos Maven, infraestructura Docker, rutas del Gateway y seguridad JWT con permisos por rol en las tres aplicaciones. Fleet ya implementa la administración de operadores y grúas. Los vehículos, solicitudes y reservas se incorporan en las siguientes fases. Los diagramas vigentes de [contexto C1](docs/diagramas/AuxiRuta_C1.drawio.png), [contenedores C2](docs/diagramas/AuxiRuta_C2.png) y [proceso principal BPMN](docs/diagramas/bpmn.png) están disponibles en `docs/diagramas/`. Los próximos pasos están detallados en el documento de contexto.
+El repositorio contiene las fases 1 a 5: cuatro proyectos Maven, infraestructura Docker, rutas del Gateway y seguridad JWT con permisos por rol en las tres aplicaciones. Fleet ya implementa la administración de operadores y grúas. Assistance incorpora vehículos propios, solicitudes persistentes y cancelación previa a aceptación. Evaluación y reservas se incorporan en las fases siguientes. Los diagramas vigentes de [contexto C1](docs/diagramas/AuxiRuta_C1.drawio.png), [contenedores C2](docs/diagramas/AuxiRuta_C2.png) y [proceso principal BPMN](docs/diagramas/bpmn.png) están disponibles en `docs/diagramas/`. Los próximos pasos están detallados en el documento de contexto.
 
 ## Demostración temporal prevista
 
@@ -82,12 +82,19 @@ La [guía de infraestructura](infra/README.md) contiene las instrucciones de Doc
 
 Gateway y microservicios validan firma, emisor, vigencia y audiencia del JWT. Cada ruta exige su rol y cliente autorizado; ADMIN no reemplaza a DRIVER u OPERATOR. Las rutas internas de Fleet aceptan únicamente credenciales técnicas y no se publican por Gateway.
 
-La prueba `python infra/tests/verify_security.py` obtiene tokens locales y verifica accesos permitidos/rechazados, enrutamiento y errores. Requiere Docker iniciado y `docker compose up -d --build`. Los documentos OpenAPI JSON se consultan con Bearer en `/docs/fleet/v3/api-docs` y `/docs/assistance/v3/api-docs`; Fleet documenta las operaciones administrativas de la fase 4; Assistance incorporará sus operaciones a partir de la fase 5. No se incluye una sesión interactiva de Swagger UI en esta fase.
+La prueba `.\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.integration=true" "-Dtest=BackendIntegrationTest"` obtiene tokens locales y verifica accesos permitidos/rechazados, enrutamiento y errores. Requiere Docker iniciado y `docker compose up -d --build`. Los documentos OpenAPI JSON se consultan con Bearer en `/docs/fleet/v3/api-docs` y `/docs/assistance/v3/api-docs`; Fleet documenta las operaciones administrativas de la fase 4; Assistance documenta vehículos y solicitudes de fase 5. No se incluye una sesión interactiva de Swagger UI en esta fase.
 
-En instalaciones creadas con la fase 2, ejecutar una vez `python infra/keycloak/ensure_basic_scope.py` para incorporar el identificador `sub` a los tokens humanos. La corrección es idempotente y conserva los datos; las instalaciones nuevas importan la configuración corregida. Detalles y resultados en [cambios](docs/cambios.md).
+En instalaciones creadas con la fase 2, ejecutar una vez `.\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.repairIdentity=true" "-Dtest=KeycloakScopeSetupTest"` para incorporar el identificador `sub` a los tokens humanos. La corrección es idempotente y conserva los datos; las instalaciones nuevas importan la configuración corregida. Detalles y resultados en [cambios](docs/cambios.md).
 
 ## Administración de flota — fase 4
 
 El [plan de implementación](docs/FASES_IMPLEMENTACION.md) conserva la división acordada de las diez fases. Fleet permite a ADMIN preparar operadores, habilitaciones, grúas y vínculos; OPERATOR consulta su perfil/equipo y declara disponibilidad y ubicación. El [registro de cambios](docs/cambios.md) explica entidades, DTOs, SQL, transacciones y verificaciones.
 
-Ejecutar `docker compose up -d --build` para construir y aplicar el esquema aditivo de Fleet. La prueba `python infra/tests/verify_fleet.py` verifica la administración en el entorno local y deja recursos identificados como pruebas. Su ejecución utiliza el perfil operator.demo; consultar las condiciones en docs/cambios.md. La especificación autenticada se obtiene en `/docs/fleet/v3/api-docs` por Gateway.
+Ejecutar `docker compose up -d --build` para construir y aplicar el esquema aditivo de Fleet. La prueba `.\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.integration=true" "-Dtest=BackendIntegrationTest"` verifica la administración en el entorno local y deja recursos identificados como pruebas. Su ejecución utiliza el perfil operator.demo; consultar las condiciones en docs/cambios.md. La especificación autenticada se obtiene en `/docs/fleet/v3/api-docs` por Gateway.
+
+
+## Vehículos, solicitudes y pruebas Java — fase 5
+
+El proyecto se verifica con Java 21, JUnit y Maven Wrapper. Los scripts Python de pruebas y de reparación de identidad fueron retirados. La guía [PRUEBAS_JAVA.md](docs/PRUEBAS_JAVA.md) describe las pruebas aisladas y las de integración real, sus requisitos y los datos que generan.
+
+DRIVER administra vehículos propios, crea solicitudes REQUESTED con snapshot de datos/reglas y consulta su historial. Crear y cancelar requieren Idempotency-Key; la propiedad, duplicados y exclusividad por vehículo se controlan transaccionalmente. ADMIN consulta solicitudes globales. La evaluación de rutas se incorpora en fase 6; las reservas y la asignación del operador en fase 7.

@@ -1,4 +1,7 @@
 spring:
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
   application:
     name: assistance-service
 server:
@@ -6,3 +9,7 @@ server:
 
 springdoc:
   paths-to-match: /api/v1/**
+
+logging:
+  level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"

@@ -19,8 +19,8 @@ public final class FleetDtos {
   Boolean supportsNonRollable,@Size(min=1) Set<@NotNull VehicleType> supportedTypes) {}
  public record LinkOperator(@NotNull UUID operatorId) {}
  public record StatusChange(@NotNull Operational status,@NotBlank @Size(max=500) String reason) {}
- public record Location(@NotNull @DecimalMin("-90") @DecimalMax("90") @Digits(integer=3,fraction=7) BigDecimal latitude,
-  @NotNull @DecimalMin("-180") @DecimalMax("180") @Digits(integer=3,fraction=7) BigDecimal longitude) {}
+ public record Location(@NotNull @DecimalMin("-90") @DecimalMax("90") @Digits(integer=3,fraction=6) BigDecimal latitude,
+  @NotNull @DecimalMin("-180") @DecimalMax("180") @Digits(integer=3,fraction=6) BigDecimal longitude) {}
  public record StatusView(UUID id,UUID towTruckId,Operational previousStatus,Operational newStatus,String reason,String changedBySubject,String operationKey,Instant changedAt) {}
  public record OperatorView(UUID id,String keycloakSubject,String fullName,String contactPhone,Registration registrationStatus,
   Availability availabilityStatus,Qualification qualificationCategory,Instant qualificationValidFrom,Instant qualificationValidUntil,

@@ -2,7 +2,7 @@
 
 > Línea base vigente: **AR-MVP-5**, 4 de noviembre de 2026. Referencia consolidada: [Decisiones arquitectónicas](../DECISIONES_ARQUITECTONICAS.md). Diseño pendiente de implementación.
 
-Estado de construcción: la fase 4 implementa Operator, TowTruck, TruckStatusHistory y tow_truck_supported_types en Fleet. ResourceReservation corresponde a la fase 7. Las entidades de Assistance se incorporan desde la fase 5. El detalle de ejecución y pruebas se registra en [cambios](../cambios.md).
+Estado de construcción: la fase 4 implementa Operator, TowTruck, TruckStatusHistory y tow_truck_supported_types en Fleet. ResourceReservation corresponde a la fase 7. La fase 5 implementa Vehicle, AssistanceRequest y RequestStatusHistory en Assistance. Las demás entidades se incorporan con evaluación, asignaciones y recuperación. El detalle de ejecución y pruebas se registra en [cambios](../cambios.md).
 
 ## 1. Alcance del modelo
 

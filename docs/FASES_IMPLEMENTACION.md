@@ -16,3 +16,5 @@ Plan acordado por el equipo. Cada fase verifica la integridad de la anterior y r
 | 10. Verificación y entrega | Colección Postman, entornos, datos reproducibles, casos positivos/negativos, integración, OpenAPI y guía final. | Otro integrante puede ejecutar y verificar el compromiso. |
 
 Las restricciones administrativas de la fase 4 incluyen validación, unicidad, exclusividad del vínculo, control de identidad y consistencia local. El rechazo de modificaciones por reservas HELD/CONFIRMED se conecta en fase 7, cuando se incorporan dichas reservas; no se simula una ocupación persistente en la fase 4.
+
+Desde fase 5, todas las pruebas automatizadas mantenidas se escriben en Java (JUnit/Mockito e integración HTTP/JPA). Las pruebas anteriores en Python se reemplazaron. La colección Postman de fase 10 complementa estas pruebas. Véase [PRUEBAS_JAVA.md](PRUEBAS_JAVA.md).

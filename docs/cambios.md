@@ -1,6 +1,6 @@
 # Cambios y guía de aprendizaje
 
-Este documento conserva el historial de construcción por fases. Cada fase revisa la anterior y los componentes afectados; registra correcciones, código incorporado, verificaciones y pendientes.
+Este documento conserva el historial de construcción por fases. Desde fase 5, las instrucciones vigentes de pruebas están en [PRUEBAS_JAVA.md](PRUEBAS_JAVA.md); las menciones a Python de fases anteriores son históricas y sus scripts fueron retirados. Cada fase revisa la anterior y los componentes afectados; registra correcciones, código incorporado, verificaciones y pendientes.
 
 ## Fase 1 — Estructura y compilación — 6 de noviembre de 2026
 
@@ -208,3 +208,70 @@ Se deshabilitó el logger SQL SqlExceptionHelper: los mensajes de restricciones 
 - git diff --check sin errores. No se modificaron diagramas ni se realizó commit o push. Los contenedores quedan iniciados.
 
 Durante las pruebas se corrigió la lectura de un operador representado por proxy JPA al repetir su vínculo. También se alineó la precisión temporal de las respuestas con PostgreSQL para asegurar igualdad en reintentos. Son correcciones de esta fase; no modifican las reglas funcionales acordadas.
+
+
+## Fase 5 — Vehículos, solicitudes y verificación Java — 7 de noviembre de 2026
+
+### Revisión de fase 4 y correcciones
+
+Se inició la infraestructura existente sin reemplazar volúmenes. Se migraron primero los casos de identidad, permisos y catálogo de Fleet a Java. La ejecución detectó que el DTO de ubicación de fase 4 admitía siete decimales, frente a los seis de AR-MVP-5; se corrigió la validación y se agregó un caso HTTP que exige 400 para siete decimales. La configuración y el modelo de datos existentes de Fleet se conservan.
+
+Por decisión del equipo, todas las pruebas automatizadas mantenidas se escriben ahora en Java. Se eliminaron infra/tests/verify_identity.py, verify_security.py y verify_fleet.py después de comprobar sus escenarios equivalentes en JUnit. También se reemplazó la reparación ensure_basic_scope.py por KeycloakScopeSetupTest, optativo e idempotente. No se necesita Python para ejecutar, probar o preparar el backend. La colección Postman prevista para la fase 10 se mantiene.
+
+### Funcionalidades incorporadas
+
+DRIVER registra vehículos ACTIVE con patente normalizada y única, tipo CAR/SUV/PICKUP, peso de 500 a 3.000 kg y marca/modelo opcionales. Consulta y modifica exclusivamente los propios; los listados filtran por subject y registro, con paginación de 1 a 100 elementos. Un recurso ajeno y uno inexistente producen el mismo 404 genérico. La edición y el cambio de registro se rechazan si el vehículo tiene una solicitud activa.
+
+La creación de solicitudes requiere vehículo propio ACTIVE, coordenadas mundiales válidas de hasta seis decimales, extremos distintos, movilidad y descripción. El estado inicial es REQUESTED. El servidor copia tipo y peso del vehículo, reglas completas y revisión AR-MVP-5; fija creación, intento inicial 1 y searchDeadline a 600 segundos de la creación mediante Clock. El cliente no puede enviar estado, propietario, snapshots, fechas ni asignaciones. La cobertura comercial y las rutas se evalúan en fase 6; una coordenada estructuralmente válida todavía no significa que el servicio sea viable.
+
+Idempotency-Key es obligatorio, no vacío y de hasta 100 caracteres. La misma clave y contenido para un conductor recuperan la solicitud con 200; una creación nueva responde 201 y Location. Otra entrada con la misma clave devuelve 409. El fingerprint SHA-256 se calcula sobre campos normalizados y prefijados con su longitud, evitando ambigüedades por separadores en descripciones o escalas decimales equivalentes. La recuperación devuelve la representación actual del recurso, incluso si ya fue cancelado; no lo reabre.
+
+DRIVER consulta solicitudes e historial propios; ADMIN tiene consulta global. OPERATOR recibe un listado vacío y 404 en detalles hasta disponer de asignaciones en fase 7: no se concede acceso global para suplir esa funcionalidad pendiente. Los listados permiten filtrar por estado y paginar. GET /configuration/assistance muestra las reglas efectivas sin secretos.
+
+La cancelación exige propietario, motivo, Idempotency-Key y ausencia de primera aceptación. Solo admite REQUESTED, PENDING_EVALUATION, AWAITING_ACCEPTANCE o SEARCHING_ALTERNATIVE con firstAssignedAt nulo. Cambia a CANCELLED, fija cierre y motivo DRIVER_CANCELLED y persiste historial en la misma transacción. Repetir la misma operación recupera el evento original; cambiar el motivo con esa clave produce 409. firstAssignedAt nunca se borra para habilitar una cancelación. Sus escenarios futuros están cubiertos por pruebas unitarias; la aceptación real corresponde a fase 7.
+
+### Persistencia y explicación del código
+
+**Vehicle, AssistanceRequest y RequestStatusHistory.** @Entity define tres tablas en assistance_db. Vehicle almacena propietario y características actuales; AssistanceRequest referencia ese vehículo local y conserva sus datos declarados de forma independiente; RequestStatusHistory registra creación y cancelación con actor, instante y operación. Los UUID son propios de cada entidad; los subjects son referencias simples a Keycloak. Las relaciones JPA son LAZY, los enums se guardan como texto y @Version protege actualizaciones concurrentes. Los DTOs evitan serializar entidades o proxies.
+
+**SQL.** db/001-assistance.sql crea las tablas, FK, índices y restricciones sin borrar datos. El índice único parcial sobre vehicle_id WHERE closed_at IS NULL impide dos solicitudes activas para un vehículo. La unicidad driver_subject/idempotency_key respalda la idempotencia. Los CHECK verifican estados, pesos, coordenadas y consistencia entre estado terminal y closedAt. El historial tiene unicidad por request_id/operation_key. El perfil Docker aplica este bootstrap aditivo antes de ddl-auto=validate. Como en Fleet, cambios posteriores de columnas necesitarán una migración explícita, no editar silenciosamente un CREATE TABLE IF NOT EXISTS.
+
+**Repositorios.** JpaRepository proporciona persistencia y consultas paginadas. Las búsquedas de vehículos incluyen el propietario en SQL. Los bloqueos PESSIMISTIC_WRITE serializan las operaciones sobre el vehículo. La cancelación consulta primero su ID por proyección y luego bloquea vehículo y solicitud, en ese orden, para no actualizar una entidad leída antes del bloqueo. El mismo orden deberá conservarse al incorporar aceptación y compromisos.
+
+**RequestService.** @Transactional delimita una escritura completa, incluyendo su historial. La creación bloquea el vehículo antes de recuperar la clave idempotente, validar estado y comprobar exclusividad. Así, dos solicitudes simultáneas con claves diferentes no pasan juntas el chequeo; con igual clave/cuerpo, la segunda recupera el resultado durable. Las fechas se obtienen del Clock inyectado y se normalizan a microsegundos para coincidir con PostgreSQL. Los logs de transición se emiten después del commit y solo incluyen ID y estados.
+
+**RulesConfiguration.** Carga rules/mvp.yml, copia íntegra de los parámetros normativos, y serializa las reglas efectivas como JSON. Cada solicitud guarda ese texto y su revisión. Un cambio posterior del archivo o del vehículo no modifica solicitudes anteriores. Esta fase aplica el perfil temporal normal; los overrides demo se integran en fase 9. La prueba de snapshot valida también límites que se usarán en fases posteriores.
+
+**RequestController y RequestDtos.** El controlador recibe JSON validado, extrae identidad del JWT y delega en el servicio. Los records contienen exclusivamente campos admitidos. Se rechazan propiedades desconocidas para impedir asignación de campos del servidor. Los errores se normalizan como ProblemDetail: 400 estructura inválida, 401 autenticación, 403 rol, 404 ámbito/recurso y 409 conflicto. Se agregaron descripciones, seguridad Bearer, respuestas de creación y esquemas OpenAPI. La especificación real se consulta por /docs/assistance/v3/api-docs.
+
+### Pruebas Java y forma de ejecución
+
+La guía [PRUEBAS_JAVA.md](PRUEBAS_JAVA.md) reemplaza los comandos anteriores. Las pruebas aisladas no necesitan Docker; las de integración se habilitan explícitamente:
+
+```powershell
+docker compose up -d --build
+.\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.integration=true" "-Dtest=BackendIntegrationTest"
+```
+
+BackendClient usa HttpClient de Java 21 para realizar PKCE, obtener credenciales técnicas y enviar HTTP. Mantiene tokens en memoria y no los imprime. BackendIntegrationTest agrupa identidad/seguridad, administración Fleet, solicitudes/propiedad/concurrencia y persistencia tras reinicio. Vive en src/test de Gateway como suite transversal; no se agrega un quinto servicio ni se incluyen credenciales de prueba en los JAR de producción.
+
+La prueba de propiedad crea un segundo DRIVER temporal en Keycloak y lo elimina al finalizar. El mantenimiento de esa identidad utiliza exclusivamente credenciales locales de la prueba; las aplicaciones no reciben permisos administrativos. Los datos de negocio de prueba quedan identificados como TEST/TST en PostgreSQL. La suite cancela sus solicitudes, deja las grúas nuevas inactivas/desvinculadas y el operador demo no disponible. El caso de persistencia reinicia Assistance y compara solicitud e historial completos.
+
+RequestRulesTest verifica fechas con Clock fijo, snapshot independiente del vehículo, normalización de claves de entrada, fingerprint sensible al contenido y prohibición de cancelar después de la primera aceptación o durante ejecución/cierre. Las pruebas HTTP verifican PostgreSQL real y no reemplazan las restricciones de base con mocks.
+
+### Límites y continuidad
+
+La fase termina con solicitudes persistidas en REQUESTED; no se inventan evaluaciones ni asignaciones. La evaluación y ORS corresponden a fase 6. En fase 7 se incorporarán las asignaciones visibles al operador, las reservas y los controles adicionales por confirmación o liberación remota incierta. En fase 9 se automatizarán búsquedas y vencimientos; por ahora el deadline se conserva pero no hay tarea que cierre solicitudes por tiempo. Los diagramas y la línea base funcional AR-MVP-5 no se modificaron.
+
+
+### Resultados de verificación de fase 5
+
+- Construcción de las tres imágenes satisfactoria. Pruebas aisladas: commons 12, Fleet 10 y Assistance 12; 34 en total, sin fallos.
+- BackendIntegrationTest ejecutó sus cuatro casos Java sin fallos, con 147 comprobaciones HTTP en la ejecución final. El total puede variar por las consultas de disponibilidad durante el reinicio y por la existencia previa del perfil demo.
+- Se verificó firma JWT real, identidad PKCE, rol/audiencia, defensa interna, catálogo Fleet y su precisión de ubicación corregida.
+- Concurrencia sobre PostgreSQL: distintas claves para un mismo vehículo produjeron 201/409; igual clave y contenido produjeron 201/200 y el mismo ID.
+- Un segundo conductor real no pudo consultar ni modificar el vehículo o solicitud ajenos; los listados conservaron el ámbito propio. La identidad temporal fue eliminada al finalizar.
+- Cancelaciones e historial idempotentes, snapshots inmutables y conservación de solicitud/historial después de reiniciar Assistance verificados.
+- KeycloakScopeSetupTest también se ejecutó satisfactoriamente, confirmando la reparación Java idempotente de basic.
+- Los casos de integración/reparación quedan omitidos por defecto en builds normales y Docker builds; su ejecución real exige las propiedades explícitas documentadas.
+- git diff --check sin errores; no quedan archivos fuente Python en el repositorio. No se modificaron diagramas ni se realizó commit o push. Los contenedores quedan iniciados.
