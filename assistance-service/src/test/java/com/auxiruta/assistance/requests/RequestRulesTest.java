@@ -24,7 +24,7 @@ class RequestRulesTest {
  }
  @Test void creationUsesInjectedClockAndCopiesVehicleData() throws Exception {
   var vehicles=mock(VehicleRepository.class);var requests=mock(RequestRepository.class);var histories=mock(HistoryRepository.class);var rules=new RulesConfiguration(new com.fasterxml.jackson.databind.ObjectMapper());
-  var instant=Instant.parse("2026-11-07T12:00:00Z");var service=new RequestService(vehicles,requests,histories,rules,Clock.fixed(instant,ZoneOffset.UTC));
+  var instant=Instant.parse("2026-11-07T12:00:00Z");var service=new RequestService(vehicles,requests,histories,rules,Clock.fixed(instant,ZoneOffset.UTC),mock(EvaluationReadService.class));
   var input=request(new BigDecimal("-31.4167"),"Help");Vehicle v=new Vehicle();v.id=input.vehicleId();v.ownerSubject="driver";v.vehicleType=VehicleType.SUV;v.declaredWeightKg=new BigDecimal("1200");
   when(vehicles.lockOwned(v.id,"driver")).thenReturn(Optional.of(v));when(requests.findByDriverSubjectAndIdempotencyKey("driver","key")).thenReturn(Optional.empty());when(requests.saveAndFlush(any())).thenAnswer(i->i.getArgument(0));
   org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();

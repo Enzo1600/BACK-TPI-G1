@@ -52,3 +52,17 @@ La operación Java asocia basic a ambos clientes, verifica el resultado y conser
 ## Criterios para las fases siguientes
 
 Las nuevas pruebas se escribirán en Java: JUnit/Mockito para decisiones aisladas y pruebas HTTP/JPA de integración para colaboración, persistencia y concurrencia. La colección Postman de fase 10 se mantiene como demostración ejecutable complementaria.
+
+## Evaluación y rutas — fase 6
+
+Las pruebas aisladas de Assistance usan un servidor HTTP local Java para respuestas ORS controladas; no consumen cuota externa. Comprueban interpretación métrica, caché, ausencia de ruta, 429, 403 de cuota o credenciales, respuesta inválida, ajuste a la red y clave ausente. Las pruebas de reglas verifican distancias inclusivas, redondeo hacia arriba, factor de duración, cobertura, ranking, habilitación estricta hasta fin planificado y descarte de una evaluación si ganó una cancelación. RoutingBudgetTest verifica cupos y pausas; CandidateServiceTest verifica filtrado y preselección.
+
+La suite de integración de fases anteriores ahora espera también la evaluación inicial y su evento de historial; comprueba que evaluación y presupuesto de llamadas sobrevivan al reinicio. Utiliza el proveedor configurado en el contenedor: si hay clave válida puede consumir cuota; si falta, verifica la persistencia del resultado pendiente. No realiza reintentos inmediatos de la API externa.
+
+Para exigir además una evaluación VIABLE con distancias reales:
+
+```powershell
+.\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.integration=true" "-Dauxiruta.realRouting=true" "-Dtest=BackendIntegrationTest"
+```
+
+El quinto caso prepara una grúa TEST compatible y disponible, actualiza su ubicación, crea una solicitud y verifica traslado, aproximación positiva, candidato elegible y ranking 1. Comprueba también el rechazo por destino fuera de cobertura. Al finalizar cancela su solicitud pendiente, inactiva/desvincula la grúa y deja al operador no disponible. Requiere ORS_API_KEY válida y cuota disponible; una caída externa hace fallar explícitamente este caso. Ejecutar la clase completa, ya que los casos preparan recursos en orden. Las pruebas aisladas siguen independientes del proveedor.

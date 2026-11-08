@@ -21,6 +21,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<ProblemDetail> forbidden(AccessDeniedException e) { return ResponseEntity.status(403).body(Problems.of(403)); }
     @ExceptionHandler({org.springframework.dao.DataIntegrityViolationException.class, org.springframework.dao.ConcurrencyFailureException.class})
     ResponseEntity<ProblemDetail> conflict(Exception e) { return ResponseEntity.status(409).body(Problems.of(409)); }
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    ResponseEntity<ProblemDetail> invalidConstraint(Exception e) { return ResponseEntity.badRequest().body(Problems.of(400)); }
     @ExceptionHandler(Exception.class)
     ResponseEntity<ProblemDetail> unexpected(Exception e) {
         LoggerFactory.getLogger(getClass()).error("Error inesperado tipo={}", e.getClass().getSimpleName());

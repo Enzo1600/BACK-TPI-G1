@@ -275,3 +275,61 @@ La fase termina con solicitudes persistidas en REQUESTED; no se inventan evaluac
 - KeycloakScopeSetupTest también se ejecutó satisfactoriamente, confirmando la reparación Java idempotente de basic.
 - Los casos de integración/reparación quedan omitidos por defecto en builds normales y Docker builds; su ejecución real exige las propiedades explícitas documentadas.
 - git diff --check sin errores; no quedan archivos fuente Python en el repositorio. No se modificaron diagramas ni se realizó commit o push. Los contenedores quedan iniciados.
+
+## Fase 6 — Evaluación, rutas y colaboración — 8 de noviembre de 2026
+
+### Revisión de fase 5 y correcciones
+
+Antes de modificar el backend se ejecutaron satisfactoriamente los cuatro casos Java de integración de fase 5, incluyendo PostgreSQL y reinicio. Se conservaron propiedad, idempotencia, exclusividad por vehículo y cancelación. Se actualizaron sus expectativas porque ahora cada solicitud nueva incorpora una evaluación y otro evento de historial. Repetir una creación idempotente no repite la llamada externa.
+
+Durante la integración de fase 6, la validación del esquema detectó que Hibernate interpretaba transportDistanceM y approachDistanceM con nombres distintos de las columnas SQL. Se agregaron nombres explícitos mediante @Column; el esquema y los datos existentes se conservaron. La clave proporcionada se incorporó únicamente al .env local ignorado por Git. No se incorporaron pruebas Python, ni se modificaron los diagramas.
+
+### Proceso incorporado
+
+Tras crear y confirmar una solicitud, RequestController invoca EvaluationService fuera de la transacción de creación. Primero comprueba origen y destino dentro del círculo comercial de 15 km. Luego obtiene el traslado real con OpenRouteService: distancia entre 500 y 30.000 m inclusive y duración ajustada no mayor a 5.400 segundos. El factor 1,25 se aplica con BigDecimal y redondeo hacia arriba a segundos; las distancias se comparan sin redondear.
+
+Assistance consulta candidatos mediante credenciales técnicas a Fleet. Fleet devuelve hasta cinco recursos activos, disponibles, compatibles, con ubicación de antigüedad máxima 300 segundos y habilitación vigente; preselecciona por Haversine y UUID. Assistance evalúa la aproximación vial, distancia máxima de 15 km y presupuesto de llegada de 2.700 segundos incluyendo despacho y margen. Calcula fin estimado con ventana restante de aceptación, despacho, aproximación, carga, traslado, descarga y contingencia. La habilitación debe vencer estrictamente después de ese fin. La vigencia de rutas y ubicación se revisa antes de producir el ranking.
+
+Los candidatos elegibles se ordenan por menor aproximación ajustada, mayor tiempo disponible y UUID de grúa. Como los márgenes de llegada son iguales para todos, ese orden equivale al presupuesto de llegada. Si la grúa está exactamente en el origen, su aproximación es cero; previamente se exige una ruta de traslado válida que confirme ese origen. No se simulan distancias ante fallos externos.
+
+Un incumplimiento confirmado de admisión produce solicitud REJECTED y libera su exclusividad mediante closedAt. La ausencia de ruta hacia un candidato solo lo descarta. Una falla técnica, cuota o falta de recursos conserva PENDING_EVALUATION. latestEvaluation diferencia VIABLE, SEARCHING, PENDING_DEPENDENCY y REJECTED e incluye motivos y candidatos. VIABLE no crea reservas ni asignación: estas pertenecen a fase 7.
+
+### Clases y responsabilidades
+
+- **GeoMath, en commons:** función Haversine reutilizada por ambos servicios. No contiene entidades ni contratos de negocio compartidos.
+- **CandidateController/CandidateService, en Fleet:** endpoint interno GET /internal/fleet/candidates con parámetros latitude, longitude, vehicleType, weightKg y nonRollable. Exige token técnico FLEET_SERVICE/audiencia auxiruta-fleet; Gateway continúa bloqueando rutas internas. El repositorio carga operador y tipos admitidos mediante EntityGraph, evitando lecturas diferidas fuera de la transacción.
+- **FleetClient, en Assistance:** cliente REST con DTO propio. Obtiene y reutiliza temporalmente el token client_credentials de assistance-service. No propaga el JWT humano ni accede a fleet_db.
+- **RouteProvider y OpenRouteServiceClient:** separan el contrato necesario para evaluar del proveedor HTTP. Usan RestClient, perfil driving-car, coordenadas [longitud, latitud] y cabecera Authorization. Verifican geometría y ajuste máximo de 100 m a la red. Solo conservan métricas y fechas, no el JSON completo del proveedor.
+- **EvaluationService:** aplica las reglas del snapshot de la solicitud y coordina llamadas. No mantiene una transacción de base abierta mientras espera la red.
+- **EvaluationStore:** carga una entrada con versión/estado y guarda resultado, candidatos, transición e historial en una transacción corta. Antes de guardar bloquea y vuelve a verificar versión, estado y deadline. Una cancelación concurrente impide aplicar el resultado anterior; no se revive la solicitud.
+- **EvaluationReadService:** devuelve la última evaluación y candidatos por DTO, conservando el control de acceso de RequestService. No expone credenciales ni datos personales del operador. Los esquemas OpenAPI públicos reflejan latestEvaluation.
+
+### Persistencia y presupuesto de llamadas
+
+Evaluation/evaluations conserva datos de entrada, reglas relevantes, traslado, resultado y motivos. CandidateEvaluation/candidate_evaluations conserva identificadores remotos, capacidad, habilitación, ubicación, métricas, elegibilidad, fin estimado y ranking. Las FK son locales a Assistance; no hay FK hacia Fleet o Keycloak. Las métricas viales usan numeric sin redondeo impuesto para preservar valores limítrofes. SQL se ejecuta de forma aditiva y Hibernate usa ddl-auto=validate.
+
+RoutingBudget utiliza JdbcTemplate y transacciones para bloquear una fila única de routing_budget antes de reservar una llamada en routing_calls. Así dos evaluaciones no consumen el mismo último cupo. Se limita conservadoramente a 40 solicitudes en 60 segundos y 2.000 en una ventana móvil de 24 horas; no se supone reinicio a medianoche. Intentos fallidos también consumen el presupuesto local. La pausa y el contador persisten tras reiniciar Assistance.
+
+La caché de rutas es local en memoria, con máximo de 500 entradas, coordenadas normalizadas, perfil, revisión y límite de ajuste como clave. Reutiliza solo resultados de hasta 300 segundos, nunca errores; un reinicio invalida la caché pero conserva el presupuesto. El traslado se consulta una sola vez por evaluación y se comparte entre candidatos.
+
+### Fallos y límites de esta fase
+
+Los clientes tienen timeout de conexión de 2 segundos y respuesta de 5 segundos, sin reintento inmediato. ORS 2009/2010 en respuestas 400/404 confirma ausencia de ruta/punto. Un 429 respeta Retry-After, con 60 segundos por defecto; 403 de cuota diaria utiliza reset o espera conservadora de 24 horas. Credenciales inválidas generan CONFIGURATION y pausa local de 300 segundos. Una respuesta desconocida o inválida permanece como dependencia fallida. Los errores y logs no incluyen clave, token ni cuerpo remoto.
+
+La evaluación inicial es sincrónica; la solicitud ya existe antes de consultar dependencias. Si el proceso cae entre creación y evaluación, puede quedar REQUESTED: la recuperación programada se incorpora en fase 9. También quedan para esa fase búsquedas periódicas, reintentos diferidos y cierres por vencimiento. No hay endpoint humano para aprobar resultados. El límite local de cuota no contabiliza usos de la misma clave fuera de esta instalación; prevalecen las respuestas del proveedor.
+
+Los parámetros del dominio permanecen en AR-MVP-5. La exclusión de recursos reservados se conectará en fase 7, cuando exista la reserva; hasta entonces una evaluación indica viabilidad sin comprometer recursos.
+
+### Ejecución
+
+Con .env configurado y Docker Desktop iniciado, ejecutar docker compose up -d --build. La guía PRUEBAS_JAVA.md contiene la regresión y la opción auxiruta.realRouting=true para exigir rutas reales. No es necesario volver a instalar commons al repetir tests, salvo que cambie la biblioteca; esta fase agregó GeoMath y por ello sí requirió su instalación inicial.
+
+### Resultados de verificación de fase 6
+
+- Pruebas Java aisladas: commons 12, Fleet 14 y Assistance 36; 62 casos aprobados. Assistance incluye pruebas HTTP locales del proveedor y controles de cuota sin acceso externo.
+- BackendIntegrationTest: cinco casos aprobados y 162 comprobaciones HTTP en la ejecución final. Se verificaron permisos, flota, propiedad, idempotencia, concurrencia, cancelación y reinicio, además de la evaluación real.
+- La evaluación real con Java obtuvo traslado de 1.736,6 m y aproximación de 1.057,6 m; conservó resultado VIABLE y candidato elegible con ranking 1. El destino fuera de cobertura produjo REJECTED/OUTSIDE_COVERAGE.
+- Solicitud, historial, última evaluación y presupuesto de llamadas se conservaron tras reiniciar Assistance. La prueba dejó el operador demo no disponible y su grúa de prueba inactiva/desvinculada.
+- Imágenes reconstruidas y aplicaciones iniciadas con validación SQL/JPA satisfactoria. .env está excluido tanto de Git como del contexto Docker; .env.example conserva la clave vacía.
+- La documentación de ejecución, pruebas y avance se actualizó. Las cuotas locales son conservadoras respecto de la referencia pública; no se afirma que se haya inspeccionado el plan contratado de la cuenta.
+- No se realizó commit ni push. Reservas/aceptación continúan en fase 7 y automatización en fase 9.

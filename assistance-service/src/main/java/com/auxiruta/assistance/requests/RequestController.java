@@ -14,8 +14,8 @@ import static com.auxiruta.assistance.requests.DomainTypes.*;
 @RestController @RequestMapping("/api/v1") @SecurityRequirement(name="bearerAuth")
 @ApiResponses({@ApiResponse(responseCode="400",description="Entrada inválida"),@ApiResponse(responseCode="401",description="Autenticación requerida"),@ApiResponse(responseCode="403",description="Rol insuficiente"),@ApiResponse(responseCode="404",description="Recurso inexistente o ajeno"),@ApiResponse(responseCode="409",description="Conflicto de estado, exclusividad o idempotencia")})
 public class RequestController {
- private final RequestService service;private final RulesConfiguration rules;
- public RequestController(RequestService service,RulesConfiguration rules) { this.service=service;this.rules=rules; }
+ private final RequestService service;private final RulesConfiguration rules;private final EvaluationService evaluation;
+ public RequestController(RequestService service,RulesConfiguration rules,EvaluationService evaluation) { this.service=service;this.rules=rules;this.evaluation=evaluation; }
  @ApiResponse(responseCode="201",description="Vehículo creado con Location")
  @PostMapping("/vehicles") @Operation(summary="DRIVER: registrar vehículo propio ACTIVE")
  public ResponseEntity<VehicleView> createVehicle(@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody CreateVehicle d) { var v=service.createVehicle(jwt.getSubject(),d);return ResponseEntity.created(URI.create("/api/v1/vehicles/"+v.id())).body(v); }
@@ -28,9 +28,9 @@ public class RequestController {
  @PatchMapping("/vehicles/{id}/registration-status") @Operation(summary="DRIVER: activar/inactivar vehículo sin solicitud activa")
  public VehicleView registration(@PathVariable UUID id,@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody RegistrationChange d) { return service.registration(id,jwt.getSubject(),d); }
  @ApiResponses({@ApiResponse(responseCode="201",description="Solicitud creada con Location"),@ApiResponse(responseCode="200",description="Solicitud recuperada por Idempotency-Key")})
- @PostMapping("/assistance-requests") @Operation(summary="DRIVER: crear REQUESTED con snapshot; repetir Idempotency-Key y cuerpo recupera la solicitud")
+ @PostMapping("/assistance-requests") @Operation(summary="DRIVER: crear y evaluar solicitud con snapshot; repetir Idempotency-Key y cuerpo recupera la solicitud")
  public ResponseEntity<RequestView> create(@AuthenticationPrincipal Jwt jwt,@RequestHeader("Idempotency-Key") String key,@Valid @RequestBody CreateRequest d) {
-  var result=service.createRequest(jwt.getSubject(),key,d);return ResponseEntity.status(result.created()?201:200).location(URI.create("/api/v1/assistance-requests/"+result.request().id())).body(result.request());
+  var result=service.createRequest(jwt.getSubject(),key,d);if(result.created())evaluation.evaluate(result.request().id());return ResponseEntity.status(result.created()?201:200).location(URI.create("/api/v1/assistance-requests/"+result.request().id())).body(service.request(result.request().id(),jwt));
  }
  @GetMapping("/assistance-requests") @Operation(summary="DRIVER: solicitudes propias; ADMIN: globales; OPERATOR: sin asignaciones hasta fase 7")
  public PageView<RequestView> requests(@AuthenticationPrincipal Jwt jwt,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size,@RequestParam(required=false) Status status) { return service.requests(jwt,page,size,status); }

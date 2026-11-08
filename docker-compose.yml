@@ -83,6 +83,8 @@ services:
       KEYCLOAK_CLIENT_ID: assistance-service
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:?Configurar .env}
       FLEET_URL: http://fleet-service:8081
+      ORS_API_KEY: ${ORS_API_KEY:-}
+      ORS_BASE_URL: ${ORS_BASE_URL:-https://api.heigit.org/openrouteservice/v2}
     depends_on:
       keycloak:
         condition: service_healthy

@@ -41,7 +41,7 @@ class BackendIntegrationTest {
   call("ADMIN","GET","/internal/fleet/candidates",null,403);d("GET","/vehicles",null,200);a("GET","/operators",null,200);
   call("TECH","GET","/docs/fleet/v3/api-docs",null,401);
   String[] token=TOKENS.get("DRIVER").split("[.]");token[2]=(token[2].startsWith("A")?"B":"A")+token[2].substring(1);TOKENS.put("TAMPERED",String.join(".",token));call("TAMPERED","GET","/docs/fleet/v3/api-docs",null,401);
-  direct("fleet-service",8081,"/internal/fleet/candidates",null,401);direct("fleet-service",8081,"/internal/fleet/candidates","ADMIN",403);direct("fleet-service",8081,"/internal/fleet/candidates","TECH",404);
+  direct("fleet-service",8081,"/internal/fleet/candidates",null,401);direct("fleet-service",8081,"/internal/fleet/candidates","ADMIN",403);direct("fleet-service",8081,"/internal/fleet/candidates","TECH",400);direct("fleet-service",8081,"/internal/fleet/candidates?latitude=-31.4167&longitude=-64.1833&vehicleType=CAR&weightKg=1000&nonRollable=false","TECH",200);
   direct("fleet-service",8081,"/api/v1/operators","DRIVER",403);direct("assistance-service",8082,"/api/v1/vehicles","ADMIN",403);direct("assistance-service",8082,"/api/v1/vehicles","TECH",401);
  }
  @Test @Order(2) void fleetAdministrationRegression() throws Exception {
@@ -117,7 +117,7 @@ class BackendIntegrationTest {
   dk("POST","/assistance-requests",request.deepCopy().put("status","ASSIGNED"),key(),400);d("POST","/assistance-requests",request,400);
   call("OTHER_DRIVER","POST",api("/assistance-requests"),request,key(),404);
   String creationKey=key();JsonNode created=dk("POST","/assistance-requests",request,creationKey,201);String rid=id(created),rp="/assistance-requests/"+rid;
-  assertEquals("REQUESTED",created.path("status").asText());assertEquals(500,created.path("declaredWeightKg").asInt());
+  assertEquals("PENDING_EVALUATION",created.path("status").asText());assertFalse(created.path("latestEvaluation").isNull());assertEquals(500,created.path("declaredWeightKg").asInt());
   assertEquals(600,java.time.Duration.between(Instant.parse(created.path("createdAt").asText()),Instant.parse(created.path("searchDeadline").asText())).toSeconds());
   assertEquals("AR-MVP-5",created.path("configurationRevision").asText());assertEquals(15000,json(created.path("configurationSnapshot").asText()).path("coverage").path("radius-meters").asInt());
   assertEquals(rid,id(dk("POST","/assistance-requests",request,creationKey,200)));
@@ -125,11 +125,11 @@ class BackendIntegrationTest {
   d("PATCH",vp,object("declaredWeightKg",2000),409);d("PATCH",vp+"/registration-status",object("status","INACTIVE"),409);
   d("GET",rp,null,200);a("GET",rp,null,200);o("GET",rp,null,404);call("OTHER_DRIVER","GET",api(rp),null,404);
   d("GET","/assistance-requests?status=REQUESTED",null,200);a("GET","/assistance-requests",null,200);assertTrue(o("GET","/assistance-requests",null,200).path("content").isEmpty());
-  assertEquals(1,d("GET",rp+"/history",null,200).path("totalElements").asInt());call("OTHER_DRIVER","GET",api(rp+"/history"),null,404);
+  assertEquals(2,d("GET",rp+"/history",null,200).path("totalElements").asInt());call("OTHER_DRIVER","GET",api(rp+"/history"),null,404);
   a("POST",rp+"/cancellations",object("reason","Cancel"),403);call("OTHER_DRIVER","POST",api(rp+"/cancellations"),object("reason","Cancel"),key(),404);
   String cancellationKey=key();ObjectNode cancel=object("reason","Integration finished");JsonNode event=dk("POST",rp+"/cancellations",cancel,cancellationKey,200);
   assertEquals(event,dk("POST",rp+"/cancellations",cancel,cancellationKey,200));dk("POST",rp+"/cancellations",object("reason","Other"),cancellationKey,409);
-  assertEquals("CANCELLED",d("GET",rp,null,200).path("status").asText());assertEquals(2,d("GET",rp+"/history",null,200).path("totalElements").asInt());
+  assertEquals("CANCELLED",d("GET",rp,null,200).path("status").asText());assertEquals(3,d("GET",rp+"/history",null,200).path("totalElements").asInt());
   d("PATCH",vp,object("declaredWeightKg",2000),200);assertEquals(500,d("GET",rp,null,200).path("declaredWeightKg").asInt());
   // Real simultaneous requests: one active request per vehicle.
   try(var pool=Executors.newFixedThreadPool(2)) {
@@ -146,6 +146,7 @@ class BackendIntegrationTest {
  @Test @Order(4) void requestSnapshotAndHistorySurviveRestart() throws Exception {
   assertNotNull(persistedRequestId,"Run the complete integration suite for restart verification");
   String historyPath=api("/assistance-requests/"+persistedRequestId+"/history");JsonNode before=call("DRIVER","GET",historyPath,null,200);
+  String budgetBefore=routingBudgetState();
   Process restart=new ProcessBuilder("docker","compose","restart","assistance-service").directory(root.toFile()).redirectErrorStream(true).start();
   restart.getInputStream().readAllBytes();assertEquals(0,restart.waitFor());
   boolean ready=false;
@@ -154,6 +155,41 @@ class BackendIntegrationTest {
    catch(java.io.IOException ignored) { /* The application is still restarting. */ }
    Thread.sleep(1000);
   }
-  assertTrue(ready,"Assistance did not become ready after restart");assertEquals(before,call("DRIVER","GET",historyPath,null,200));
+  assertTrue(ready,"Assistance did not become ready after restart");assertEquals(budgetBefore,routingBudgetState());assertEquals(before,call("DRIVER","GET",historyPath,null,200));
+ }
+ @Test @Order(5) @EnabledIfSystemProperty(named="auxiruta.realRouting",matches="true")
+ void realRouteAndFleetEvaluation() throws Exception {
+  assertFalse(ENV.getOrDefault("ORS_API_KEY","").isBlank(),"Configure ORS_API_KEY locally");
+  String op=id(o("GET","/operators/me",null,200));
+  String tid=id(a("POST","/tow-trucks",object("licensePlate","TEST"+key().replace("-","").substring(0,6),"maximumLoadKg",3000,"supportsNonRollable",true,"supportedTypes",List.of("CAR")),201));
+  String rid=null;
+  try {
+   a("PUT","/tow-trucks/"+tid+"/operator",object("operatorId",op),200);
+   call("ADMIN","PATCH",api("/tow-trucks/"+tid+"/operational-status"),object("status","ACTIVE","reason","Phase 6 real route"),key(),200);
+   o("PATCH","/operators/me/availability",object("status","AVAILABLE"),200);
+   o("PUT","/tow-trucks/assigned-to-me/location",object("latitude",-31.42,"longitude",-64.19),200);
+   String vid=id(d("POST","/vehicles",object("licensePlate","TST"+key().replace("-","").substring(0,7),"vehicleType","CAR","declaredWeightKg",1000),201));
+   ObjectNode body=object("vehicleId",vid,"originLatitude",-31.4167,"originLongitude",-64.1833,"destinationLatitude",-31.42,"destinationLongitude",-64.19,"mobilityCondition","ROLLABLE","description","Phase 6 real ORS");
+   JsonNode created=dk("POST","/assistance-requests",body,key(),201);rid=id(created);
+   JsonNode evaluation=created.path("latestEvaluation");
+   assertEquals("VIABLE",evaluation.path("result").asText(),"Real route evaluation reason: "+evaluation.path("reasonCode").asText());
+   assertEquals("PENDING_EVALUATION",created.path("status").asText());
+   assertTrue(evaluation.path("transportDistanceM").asDouble()>=500);
+   JsonNode candidate=evaluation.path("candidates").get(0);assertEquals(tid,candidate.path("towTruckId").asText());assertTrue(candidate.path("eligible").asBoolean());assertEquals(1,candidate.path("rankingPosition").asInt());assertTrue(candidate.path("approachDistanceM").asDouble()>0);
+   assertEquals(evaluation,d("GET","/assistance-requests/"+rid,null,200).path("latestEvaluation"));
+   dk("POST","/assistance-requests/"+rid+"/cancellations",object("reason","Real route checked"),key(),200);rid=null;
+   JsonNode rejected=dk("POST","/assistance-requests",body.deepCopy().put("destinationLatitude",-32),key(),201);
+   assertEquals("REJECTED",rejected.path("status").asText());assertEquals("OUTSIDE_COVERAGE",rejected.path("latestEvaluation").path("reasonCode").asText());
+   System.out.println("Real ORS evaluation: transport="+evaluation.path("transportDistanceM").asText()+"m, approach="+candidate.path("approachDistanceM").asText()+"m, ranking=1");
+  } finally {
+   if(rid!=null){var current=d("GET","/assistance-requests/"+rid,null,200);if(current.path("status").asText().equals("PENDING_EVALUATION"))dk("POST","/assistance-requests/"+rid+"/cancellations",object("reason","Test cleanup"),key(),200);}
+   o("PATCH","/operators/me/availability",object("status","UNAVAILABLE"),200);
+   call("ADMIN","PATCH",api("/tow-trucks/"+tid+"/operational-status"),object("status","INACTIVE","reason","Test finished"),key(),200);
+   a("DELETE","/tow-trucks/"+tid+"/operator",null,204);
+  }
+ }
+ private static String routingBudgetState() throws Exception {
+  Process p=new ProcessBuilder("docker","compose","exec","-T","postgres","psql","-U","assistance_user","-d","assistance_db","-Atc","select count(*),max(called_at),(select blocked_until from routing_budget where id=1) from routing_calls").directory(root.toFile()).redirectErrorStream(true).start();
+  String result=new String(p.getInputStream().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);assertEquals(0,p.waitFor(),"Read routing budget state");return result;
  }
 }

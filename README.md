@@ -60,7 +60,7 @@ DECISIONES_ARQUITECTONICAS.md constituye la referencia consolidada vigente. Los 
 
 ## Estado del proyecto
 
-El repositorio contiene las fases 1 a 5: cuatro proyectos Maven, infraestructura Docker, rutas del Gateway y seguridad JWT con permisos por rol en las tres aplicaciones. Fleet ya implementa la administración de operadores y grúas. Assistance incorpora vehículos propios, solicitudes persistentes y cancelación previa a aceptación. Evaluación y reservas se incorporan en las fases siguientes. Los diagramas vigentes de [contexto C1](docs/diagramas/AuxiRuta_C1.drawio.png), [contenedores C2](docs/diagramas/AuxiRuta_C2.png) y [proceso principal BPMN](docs/diagramas/bpmn.png) están disponibles en `docs/diagramas/`. Los próximos pasos están detallados en el documento de contexto.
+El repositorio contiene las fases 1 a 6: cuatro proyectos Maven, infraestructura Docker, rutas del Gateway y seguridad JWT con permisos por rol en las tres aplicaciones. Fleet ya implementa la administración de operadores y grúas. Assistance incorpora vehículos propios, solicitudes persistentes y cancelación previa a aceptación. Assistance evalúa cobertura y rutas reales, consulta candidatos de Fleet y persiste su ranking. Las reservas se incorporan en fase 7. Los diagramas vigentes de [contexto C1](docs/diagramas/AuxiRuta_C1.drawio.png), [contenedores C2](docs/diagramas/AuxiRuta_C2.png) y [proceso principal BPMN](docs/diagramas/bpmn.png) están disponibles en `docs/diagramas/`. Los próximos pasos están detallados en el documento de contexto.
 
 ## Demostración temporal prevista
 
@@ -97,4 +97,12 @@ Ejecutar `docker compose up -d --build` para construir y aplicar el esquema adit
 
 El proyecto se verifica con Java 21, JUnit y Maven Wrapper. Los scripts Python de pruebas y de reparación de identidad fueron retirados. La guía [PRUEBAS_JAVA.md](docs/PRUEBAS_JAVA.md) describe las pruebas aisladas y las de integración real, sus requisitos y los datos que generan.
 
-DRIVER administra vehículos propios, crea solicitudes REQUESTED con snapshot de datos/reglas y consulta su historial. Crear y cancelar requieren Idempotency-Key; la propiedad, duplicados y exclusividad por vehículo se controlan transaccionalmente. ADMIN consulta solicitudes globales. La evaluación de rutas se incorpora en fase 6; las reservas y la asignación del operador en fase 7.
+DRIVER administra vehículos propios, crea solicitudes REQUESTED con snapshot de datos/reglas y consulta su historial. Crear y cancelar requieren Idempotency-Key; la propiedad, duplicados y exclusividad por vehículo se controlan transaccionalmente. ADMIN consulta solicitudes globales. Desde fase 6, la creación ejecuta la evaluación inicial; las reservas y la asignación del operador corresponden a fase 7.
+
+## Evaluación y rutas — fase 6
+
+Configurar `ORS_API_KEY` en el `.env` local y ejecutar `docker compose up -d --build`. La clave no se versiona. `POST /api/v1/assistance-requests` persiste la solicitud y luego evalúa cobertura, traslado, compatibilidad, aproximación y vigencia de habilitación. La respuesta y la consulta posterior incluyen `latestEvaluation`, sus motivos y candidatos ordenados. La cobertura se comprueba localmente; las distancias y duraciones viales provienen de OpenRouteService.
+
+Un incumplimiento confirmado de admisión produce REJECTED. Una falla temporal o falta de candidatos deja PENDING_EVALUATION. Incluso con evaluación VIABLE la solicitud permanece pendiente: las reservas y propuestas se construyen en fase 7. Las búsquedas y reintentos programados corresponden a fase 9.
+
+La [guía de pruebas Java](docs/PRUEBAS_JAVA.md) incluye el comando para verificar una evaluación real con Fleet y ORS. El [registro de cambios](docs/cambios.md) explica las clases, tablas, límites y resultados de esta fase.

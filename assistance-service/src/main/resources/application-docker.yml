@@ -22,8 +22,12 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/001-assistance.sql
+      schema-locations: classpath:db/001-assistance.sql,classpath:db/002-evaluation.sql
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+
+ors:
+  base-url: ${ORS_BASE_URL:https://api.heigit.org/openrouteservice/v2}
+  api-key: ${ORS_API_KEY:}

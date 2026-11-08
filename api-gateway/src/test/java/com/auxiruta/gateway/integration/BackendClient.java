@@ -28,7 +28,7 @@ final class BackendClient {
  static String form(Map<String,String> values) { return values.entrySet().stream().map(e->encode(e.getKey())+"="+encode(e.getValue())).collect(java.util.stream.Collectors.joining("&")); }
  static HttpResponse<String> send(HttpRequest request) throws Exception { return HTTP.send(request,HttpResponse.BodyHandlers.ofString()); }
  static HttpResponse<String> formPost(String url,Map<String,String> values,String cookies) throws Exception {
-  var b=HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(20)).header("Content-Type","application/x-www-form-urlencoded");
+  var b=HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(60)).header("Content-Type","application/x-www-form-urlencoded");
   if(cookies!=null && !cookies.isEmpty())b.header("Cookie",cookies);
   return send(b.POST(HttpRequest.BodyPublishers.ofString(form(values))).build());
  }
@@ -59,7 +59,7 @@ final class BackendClient {
  }
  record Response(int status,JsonNode body) {}
  static Response raw(String role,String method,String path,JsonNode body,String key) throws Exception {
-  var builder=HttpRequest.newBuilder(URI.create("http://127.0.0.1:8000"+path)).timeout(Duration.ofSeconds(20)).header("Content-Type","application/json");
+  var builder=HttpRequest.newBuilder(URI.create("http://127.0.0.1:8000"+path)).timeout(Duration.ofSeconds(60)).header("Content-Type","application/json");
   if(role!=null)builder.header("Authorization","Bearer "+TOKENS.get(role));if(key!=null)builder.header("Idempotency-Key",key);
   var response=send(builder.method(method,body==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(body.toString())).build());
   JsonNode data=json(response.body());if(response.statusCode()>=400){assertTrue(response.headers().firstValue("content-type").orElse("").startsWith("application/problem+json"));assertEquals(response.statusCode(),data.path("status").asInt());}
@@ -72,7 +72,7 @@ final class BackendClient {
   if(role!=null)config+="header = \"Authorization: Bearer "+TOKENS.get(role)+"\"\n";
   Process p=new ProcessBuilder("docker","compose","exec","-T","api-gateway","curl","-sS","--max-time","10","--config","-","-w","\n%{http_code}").directory(root.toFile()).start();
   try(var out=p.getOutputStream()){out.write(config.getBytes(StandardCharsets.UTF_8));}
-  String result=new String(p.getInputStream().readAllBytes(),StandardCharsets.UTF_8);assertEquals(0,p.waitFor());int split=result.lastIndexOf('\n');assertEquals(expected,Integer.parseInt(result.substring(split+1)));assertEquals(expected,json(result.substring(0,split)).path("status").asInt());checks.incrementAndGet();
+  String result=new String(p.getInputStream().readAllBytes(),StandardCharsets.UTF_8);assertEquals(0,p.waitFor());int split=result.lastIndexOf('\n');assertEquals(expected,Integer.parseInt(result.substring(split+1)));if(expected>=400)assertEquals(expected,json(result.substring(0,split)).path("status").asInt());else assertTrue(json(result.substring(0,split)).isArray());checks.incrementAndGet();
  }
  static JsonNode admin(String method,String path,JsonNode body,int expected) throws Exception {
   var b=HttpRequest.newBuilder(URI.create("http://localhost:8080/admin/realms/auxiruta"+path)).timeout(Duration.ofSeconds(20)).header("Authorization","Bearer "+adminToken).header("Content-Type","application/json");

@@ -109,3 +109,11 @@ Para preparar recursos mediante API, usar un token ADMIN en Gateway y seguir est
 7. Con token OPERATOR, PATCH /api/v1/operators/me/availability con status AVAILABLE y PUT /api/v1/tow-trucks/assigned-to-me/location con latitude/longitude. Las fechas son del servidor.
 
 Los contratos y tipos concretos se consultan en /docs/fleet/v3/api-docs con token. Una habilitación registrada o una grúa ACTIVE no garantizan elegibilidad: la selección de candidatos corresponde a la fase 6. Las reservas y restricciones sobre recursos comprometidos se incorporan en fase 7.
+
+## OpenRouteService — fase 6
+
+Agregar la clave personal únicamente en `.env` como `ORS_API_KEY`. `.env.example` contiene la variable vacía y `ORS_BASE_URL=https://api.heigit.org/openrouteservice/v2`. Compose entrega ambas variables exclusivamente a Assistance. Después de modificar `.env`, ejecutar `docker compose up -d assistance-service` para recrearlo con el entorno actualizado; `restart` no recarga las variables. Usar `--build` cuando también cambie código.
+
+Sin clave, Assistance inicia y conserva las solicitudes con evaluación PENDING_DEPENDENCY y motivo CONFIGURATION. No inventa rutas. La configuración necesita salida HTTPS hacia el proveedor. El presupuesto local limita a 40 llamadas por 60 segundos y 2.000 por 24 horas; se conserva en PostgreSQL junto con las pausas indicadas por el proveedor. Una clave compartida con aplicaciones externas puede consumir cuota fuera de este contador; las respuestas remotas siguen siendo autoridad.
+
+El esquema aditivo `002-evaluation.sql` se aplica al arrancar Assistance y Hibernate valida el mapeo. No se borran volúmenes ni datos anteriores. Las tablas nuevas son evaluations, candidate_evaluations, routing_budget y routing_calls.

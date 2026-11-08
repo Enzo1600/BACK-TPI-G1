@@ -22,8 +22,9 @@ public class RequestService {
  private final HistoryRepository histories;
  private final RulesConfiguration rules;
  private final Clock clock;
- public RequestService(VehicleRepository vehicles,RequestRepository requests,HistoryRepository histories,RulesConfiguration rules,Clock clock) {
-  this.vehicles=vehicles;this.requests=requests;this.histories=histories;this.rules=rules;this.clock=clock;
+ private final EvaluationReadService evaluations;
+ public RequestService(VehicleRepository vehicles,RequestRepository requests,HistoryRepository histories,RulesConfiguration rules,Clock clock,EvaluationReadService evaluations) {
+  this.vehicles=vehicles;this.requests=requests;this.histories=histories;this.rules=rules;this.clock=clock;this.evaluations=evaluations;
  }
  private Instant now() { return clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS); }
  private static ResponseStatusException missing() { return new ResponseStatusException(HttpStatus.NOT_FOUND); }
@@ -43,7 +44,7 @@ public class RequestService {
   return req;
  }
  private VehicleView view(Vehicle v) { return new VehicleView(v.id,v.licensePlate,v.brand,v.model,v.vehicleType,v.declaredWeightKg,v.registrationStatus,v.createdAt,v.updatedAt,v.version); }
- private RequestView view(AssistanceRequest r) { return new RequestView(r.id,r.vehicle.getId(),r.status,r.firstAssignedAt,r.closureReasonCode,r.originLatitude,r.originLongitude,r.destinationLatitude,r.destinationLongitude,r.declaredVehicleType,r.declaredWeightKg,r.mobilityCondition,r.description,r.searchAttemptNumber,r.searchDeadline,r.configurationRevision,r.configurationSnapshot,r.createdAt,r.updatedAt,r.closedAt,r.version); }
+ private RequestView view(AssistanceRequest r) { return new RequestView(r.id,r.vehicle.getId(),r.status,r.firstAssignedAt,r.closureReasonCode,r.originLatitude,r.originLongitude,r.destinationLatitude,r.destinationLongitude,r.declaredVehicleType,r.declaredWeightKg,r.mobilityCondition,r.description,r.searchAttemptNumber,r.searchDeadline,r.configurationRevision,r.configurationSnapshot,r.createdAt,r.updatedAt,r.closedAt,r.version,evaluations.latest(r.id)); }
  private HistoryView view(RequestStatusHistory h) { return new HistoryView(h.id,h.request.getId(),h.previousStatus,h.newStatus,h.actorType,h.actorSubject,h.reason,h.details,h.operationKey,h.occurredAt); }
  public VehicleView vehicle(UUID id,String subject) { return view(owned(id,subject)); }
  public PageView<VehicleView> vehicles(String subject,int p,int size,Registration status) { Pageable pageable=page(p,size,"createdAt");return paged((status==null?vehicles.findByOwnerSubject(subject,pageable):vehicles.findByOwnerSubjectAndRegistrationStatus(subject,status,pageable)).map(this::view)); }

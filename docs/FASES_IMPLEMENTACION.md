@@ -18,3 +18,7 @@ Plan acordado por el equipo. Cada fase verifica la integridad de la anterior y r
 Las restricciones administrativas de la fase 4 incluyen validación, unicidad, exclusividad del vínculo, control de identidad y consistencia local. El rechazo de modificaciones por reservas HELD/CONFIRMED se conecta en fase 7, cuando se incorporan dichas reservas; no se simula una ocupación persistente en la fase 4.
 
 Desde fase 5, todas las pruebas automatizadas mantenidas se escriben en Java (JUnit/Mockito e integración HTTP/JPA). Las pruebas anteriores en Python se reemplazaron. La colección Postman de fase 10 complementa estas pruebas. Véase [PRUEBAS_JAVA.md](PRUEBAS_JAVA.md).
+
+## Avance al 8 de noviembre de 2026
+
+Fases 1 a 6 implementadas. La fase 6 ejecuta una evaluación inicial sincrónica después de persistir la solicitud y guarda resultados/candidatos. VIABLE es resultado de evaluación, no un estado de asignación: la solicitud permanece PENDING_EVALUATION hasta incorporar propuestas/reservas en fase 7. Los reintentos, cierres por plazo y recuperación automática se integran en fase 9.
