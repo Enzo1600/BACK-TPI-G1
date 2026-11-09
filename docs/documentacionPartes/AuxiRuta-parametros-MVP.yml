@@ -38,7 +38,6 @@ auxiruta:
   fleet:
     hold-seconds: 60
     max-location-age-seconds: 300
-    max-dispatch-location-age-seconds: 120
     reconciliation-interval-seconds: 15
   cancellation:
     allowed-only-before-first-acceptance: true

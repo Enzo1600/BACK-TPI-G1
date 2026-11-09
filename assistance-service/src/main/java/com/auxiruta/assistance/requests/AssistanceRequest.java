@@ -31,5 +31,10 @@ public class AssistanceRequest {
  @Column(nullable=false,columnDefinition="text") String configurationSnapshot;
  @Column(nullable=false,length=100) String idempotencyKey;
  @Column(nullable=false,length=64) String requestFingerprint;
+ @Column(nullable=false) boolean resourceReleasePending;
+ @org.hibernate.annotations.OptimisticLock(excluded=true) @Column(nullable=false) Instant nextEvaluationAt=Instant.EPOCH;
+ @org.hibernate.annotations.OptimisticLock(excluded=true) @Column(nullable=false) Instant nextReconciliationAt=Instant.EPOCH;
+ @org.hibernate.annotations.OptimisticLock(excluded=true) @Column(nullable=false) Instant evaluationLeaseUntil=Instant.EPOCH;
+ @Column(nullable=false) boolean replacementPending;
  Instant closedAt;
 }

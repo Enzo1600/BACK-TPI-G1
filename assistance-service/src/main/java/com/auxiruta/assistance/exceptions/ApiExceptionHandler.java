@@ -16,7 +16,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return new ResponseEntity<>(Problems.of(status.value()), headers, status);
     }
     @ExceptionHandler(ResponseStatusException.class)
-    ResponseEntity<ProblemDetail> status(ResponseStatusException e) { return ResponseEntity.status(e.getStatusCode()).body(Problems.of(e.getStatusCode().value())); }
+    ResponseEntity<ProblemDetail> status(ResponseStatusException e) { return ResponseEntity.status(e.getStatusCode()).body(statusProblem(e)); }
+    private ProblemDetail statusProblem(ResponseStatusException e) {
+        var problem=Problems.of(e.getStatusCode().value());
+        if("ACCEPTANCE_CONFIRMATION_PENDING".equals(e.getReason()))problem.setProperty("code","ACCEPTANCE_CONFIRMATION_PENDING");
+        return problem;
+    }
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ProblemDetail> forbidden(AccessDeniedException e) { return ResponseEntity.status(403).body(Problems.of(403)); }
     @ExceptionHandler({org.springframework.dao.DataIntegrityViolationException.class,org.springframework.dao.ConcurrencyFailureException.class})

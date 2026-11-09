@@ -18,6 +18,9 @@ public class FleetService {
  private final TowTruckRepository trucks;
  private final TruckStatusHistoryRepository history;
  private final Clock clock;
+ @org.springframework.beans.factory.annotation.Autowired private ReservationRepository reservations;
+ private void freeTruck(UUID id){require(!reservations.busy(id,null),HttpStatus.CONFLICT);}
+ private void freeOperator(UUID id){require(!reservations.busy(null,id),HttpStatus.CONFLICT);}
  public FleetService(OperatorRepository operators,TowTruckRepository trucks,TruckStatusHistoryRepository history,Clock clock) {
   this.operators=operators;this.trucks=trucks;this.history=history;this.clock=clock;
  }
@@ -64,17 +67,18 @@ public class FleetService {
   o.updatedAt=now();operators.flush();return view(o);
  }
  @Transactional public OperatorView registration(UUID id,RegistrationChange d) {
-  Operator o=lockedOperator(id);o.registrationStatus=d.status();
+  Operator o=lockedOperator(id);freeOperator(id);o.registrationStatus=d.status();
   if(d.status()==Registration.INACTIVE) { o.availabilityStatus=Availability.UNAVAILABLE;o.availableSince=null; }
   o.updatedAt=now();operators.flush();return view(o);
  }
  @Transactional public OperatorView qualification(UUID id,QualificationChange d) {
   require(d.validFrom().isBefore(d.validUntil()),HttpStatus.BAD_REQUEST);
-  Operator o=lockedOperator(id);o.qualificationCategory=d.category();o.qualificationValidFrom=d.validFrom();o.qualificationValidUntil=d.validUntil();o.updatedAt=now();operators.flush();
+  Operator o=lockedOperator(id);freeOperator(id);o.qualificationCategory=d.category();o.qualificationValidFrom=d.validFrom();o.qualificationValidUntil=d.validUntil();o.updatedAt=now();operators.flush();
   committed("QUALIFICATION_UPDATED",o.id);return view(o);
  }
  @Transactional public OperatorView availability(String subject,AvailabilityChange d) {
   Operator o=operators.lockBySubject(subject).orElseThrow(FleetService::missing);
+  freeOperator(o.id);
   require(d.status()!=Availability.AVAILABLE || o.registrationStatus==Registration.ACTIVE,HttpStatus.CONFLICT);
   if(o.availabilityStatus!=d.status()) { o.availabilityStatus=d.status();o.availableSince=d.status()==Availability.AVAILABLE?now():null;o.updatedAt=now(); }
   operators.flush();return view(o);
@@ -84,7 +88,7 @@ public class FleetService {
  }
  @Transactional public TruckView edit(UUID id,EditTruck d) {
   require(d.licensePlate()!=null || d.maximumLoadKg()!=null || d.supportsNonRollable()!=null || d.supportedTypes()!=null,HttpStatus.BAD_REQUEST);
-  TowTruck t=lockedTruck(id);
+  TowTruck t=lockedTruck(id);freeTruck(id);
   if(d.licensePlate()!=null)t.licensePlate=plate(d.licensePlate());
   if(d.maximumLoadKg()!=null)t.maximumLoadKg=d.maximumLoadKg();
   if(d.supportsNonRollable()!=null)t.supportsNonRollable=d.supportsNonRollable();
@@ -93,13 +97,13 @@ public class FleetService {
  }
  @Transactional public TruckView link(UUID id,LinkOperator d) {
   // All operations needing both locks take the truck first, then the operator.
-  TowTruck t=lockedTruck(id);Operator o=lockedOperator(d.operatorId());
+  TowTruck t=lockedTruck(id);Operator o=lockedOperator(d.operatorId());freeTruck(id);freeOperator(o.id);
   require(t.operator==null || t.operator.getId().equals(o.id),HttpStatus.CONFLICT);
   var assigned=trucks.findByOperatorId(o.id);
   require(assigned.isEmpty() || assigned.get().id.equals(t.id),HttpStatus.CONFLICT);
   t.operator=o;t.updatedAt=now();trucks.flush();return view(t);
  }
- @Transactional public void unlink(UUID id) { TowTruck t=lockedTruck(id);t.operator=null;t.updatedAt=now();trucks.flush(); }
+ @Transactional public void unlink(UUID id) { TowTruck t=lockedTruck(id);freeTruck(id);t.operator=null;t.updatedAt=now();trucks.flush(); }
  @Transactional public StatusView status(UUID id,StatusChange d,String subject,String key) {
   require(key!=null && !key.isBlank() && key.length()<=100,HttpStatus.BAD_REQUEST);
   TowTruck t=lockedTruck(id);
@@ -109,6 +113,7 @@ public class FleetService {
    require(h.truck.getId().equals(id) && h.newStatus==d.status() && h.reason.equals(d.reason().strip()) && h.changedBySubject.equals(subject),HttpStatus.CONFLICT);
    return statusView(h);
   }
+  freeTruck(id);
   require(t.operationalStatus!=d.status(),HttpStatus.CONFLICT);
   TruckStatusHistory h=new TruckStatusHistory();h.truck=t;h.previousStatus=t.operationalStatus;h.newStatus=d.status();h.reason=d.reason().strip();h.changedBySubject=subject;h.operationKey=key;h.changedAt=now();
   history.save(h);t.operationalStatus=d.status();t.updatedAt=h.changedAt;trucks.flush();
@@ -118,6 +123,7 @@ public class FleetService {
  @Transactional public TruckView location(String subject,Location d) {
   TowTruck t=lockedTruck(trucks.assignedId(subject).orElseThrow(FleetService::missing));
   require(t.operator!=null && t.operator.getKeycloakSubject().equals(subject),HttpStatus.NOT_FOUND);
+  freeTruck(t.id);
   t.latitude=d.latitude();t.longitude=d.longitude();t.locationUpdatedAt=t.updatedAt=now();trucks.flush();return view(t);
  }
 }

@@ -22,7 +22,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/001-assistance.sql,classpath:db/002-evaluation.sql
+      schema-locations: classpath:db/001-assistance.sql,classpath:db/002-evaluation.sql,classpath:db/003-assignments.sql,classpath:db/004-execution.sql,classpath:db/005-automation.sql
   jpa:
     open-in-view: false
     hibernate:

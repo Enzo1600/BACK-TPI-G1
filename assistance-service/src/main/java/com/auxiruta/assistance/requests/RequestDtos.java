@@ -23,7 +23,7 @@ public final class RequestDtos {
   BigDecimal originLatitude,BigDecimal originLongitude,BigDecimal destinationLatitude,BigDecimal destinationLongitude,
   VehicleType declaredVehicleType,BigDecimal declaredWeightKg,Mobility mobilityCondition,String description,
   int searchAttemptNumber,Instant searchDeadline,String configurationRevision,String configurationSnapshot,
-  Instant createdAt,Instant updatedAt,Instant closedAt,long version,EvaluationReadService.EvaluationView latestEvaluation) {}
+  Instant createdAt,Instant updatedAt,Instant closedAt,long version,boolean resourceReleasePending,EvaluationReadService.EvaluationView latestEvaluation) {}
  public record HistoryView(UUID id,UUID requestId,Status previousStatus,Status newStatus,String actorType,String actorSubject,String reason,String details,String operationKey,Instant occurredAt) {}
  public record PageView<T>(List<T> content,int page,int size,long totalElements,int totalPages) {}
  public record Created(RequestView request,boolean created) {}

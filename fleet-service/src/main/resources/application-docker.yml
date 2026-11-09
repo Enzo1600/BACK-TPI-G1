@@ -12,7 +12,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/001-fleet-catalog.sql
+      schema-locations: classpath:db/001-fleet-catalog.sql,classpath:db/002-reservations.sql,classpath:db/003-automation.sql
   jpa:
     open-in-view: false
     hibernate:

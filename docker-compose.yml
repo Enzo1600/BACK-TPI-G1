@@ -5,7 +5,8 @@ x-logging: &logging
     max-size: "10m"
     max-file: "3"
 x-jwt: &jwt
-  SPRING_PROFILES_ACTIVE: docker
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+  AUXIRUTA_AUTOMATION_ENABLED: ${AUXIRUTA_AUTOMATION_ENABLED:-true}
   KEYCLOAK_ISSUER_URI: http://localhost:8080/realms/auxiruta
   KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/auxiruta/protocol/openid-connect/certs
 services:

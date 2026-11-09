@@ -59,7 +59,7 @@ Los valores siguientes constituyen la única tabla normativa de parámetros de e
 | Reasignaciones posteriores a una aceptación | 2; hasta 3 intentos totales de búsqueda |
 | Revisión de búsqueda / reconciliación | Cada 30 s / 15 s |
 | Antigüedad de ubicación al reservar/aceptar | Hasta 300 s |
-| Antigüedad de ubicación al despachar | Hasta 120 s |
+| Antigüedad de ubicación al despachar | Sin límite de antigüedad tras aceptar; se asume permanencia en la posición informada |
 | Antigüedad de evaluación de rutas | Hasta 300 s |
 | Plazo para despacho desde aceptación | 300 s |
 | Ajuste máximo de coordenada a la red vial | 100 m |
@@ -120,7 +120,7 @@ Los tiempos de carga y descarga planifican la habilitación. No obligan a espera
 
 Las búsquedas alternativas anteriores al despacho conservan origen y destino originales y aplican los mismos límites de distancia del traslado inicial.
 
-Las rutas se reutilizan únicamente con iguales coordenadas, perfil y revisión de datos/reglas, dentro de su vigencia. Una evaluación vencida se recalcula antes de aceptar/despachar. Si la información no puede validarse, la acción no se habilita.
+Las rutas se reutilizan únicamente con iguales coordenadas, perfil y revisión de datos/reglas, dentro de su vigencia. Al emitir una propuesta se exige una evaluación vigente. Esa evaluación se conserva durante toda la ventana de aceptación aunque supere los 300 segundos, bajo el supuesto de posición y condiciones constantes. Aceptar no recalcula rutas ni extiende expiresAt o searchDeadline; Fleet sigue validando recursos y ubicación de hasta 300 segundos. Antes de despachar se revalidan las rutas y se recalculan si vencieron.
 
 ### 5.6 Búsqueda, selección y propuestas
 
@@ -128,7 +128,7 @@ El intento inicial comienza en createdAt e incluye evaluación, consultas y prop
 
 En cada ronda se preseleccionan los candidatos elegibles más cercanos por Haversine, hasta el máximo definido. Entre los que tengan evaluación de ruta válida se ordena por menor presupuesto de llegada, mayor tiempo libre y UUID de grúa lexicográfico. No se garantiza un óptimo global entre toda la flota.
 
-Solo hay una propuesta activa por solicitud. No se vuelve a proponer una pareja grúa/operador rechazada, vencida o fallida en esa solicitud. Un recurso anteriormente ocupado sin propuesta fallida puede evaluarse al quedar libre.
+Solo hay una propuesta activa por solicitud. Un operador que rechaza queda excluido de nuevas propuestas para esa solicitud, incluidos los intentos posteriores. Si aceptó y venció su plazo de despacho, puede volver a competir tras liberar el recurso y cumplir nuevamente las condiciones de elegibilidad. Un recurso anteriormente ocupado sin propuesta fallida puede evaluarse al quedar libre.
 
 Una reserva creada consume propuesta; un conflicto que impidió crearla no la consume. Al finalizar el plazo o agotar propuestas sin aceptación se utiliza UNFULFILLED, con motivo diferenciado: NO_AVAILABLE_RESOURCE, NO_VIABLE_CANDIDATE, OFFER_LIMIT_REACHED o DEPENDENCY_TIMEOUT.
 

@@ -23,6 +23,7 @@ public class RequestService {
  private final RulesConfiguration rules;
  private final Clock clock;
  private final EvaluationReadService evaluations;
+ @org.springframework.beans.factory.annotation.Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
  public RequestService(VehicleRepository vehicles,RequestRepository requests,HistoryRepository histories,RulesConfiguration rules,Clock clock,EvaluationReadService evaluations) {
   this.vehicles=vehicles;this.requests=requests;this.histories=histories;this.rules=rules;this.clock=clock;this.evaluations=evaluations;
  }
@@ -40,11 +41,11 @@ public class RequestService {
  private boolean driver(Jwt jwt) { return TokenSupport.permits(jwt,false,"DRIVER"); }
  private AssistanceRequest visible(UUID id,Jwt jwt) {
   AssistanceRequest req=requests.findById(id).orElseThrow(RequestService::missing);
-  if(!admin(jwt)) require(driver(jwt) && req.driverSubject.equals(jwt.getSubject()),HttpStatus.NOT_FOUND);
+  if(!admin(jwt)) require((driver(jwt) && req.driverSubject.equals(jwt.getSubject())) || (TokenSupport.permits(jwt,false,"OPERATOR") && jdbc.queryForObject("select count(*) from assignments where request_id=? and operator_subject=?",Long.class,id,jwt.getSubject())>0),HttpStatus.NOT_FOUND);
   return req;
  }
  private VehicleView view(Vehicle v) { return new VehicleView(v.id,v.licensePlate,v.brand,v.model,v.vehicleType,v.declaredWeightKg,v.registrationStatus,v.createdAt,v.updatedAt,v.version); }
- private RequestView view(AssistanceRequest r) { return new RequestView(r.id,r.vehicle.getId(),r.status,r.firstAssignedAt,r.closureReasonCode,r.originLatitude,r.originLongitude,r.destinationLatitude,r.destinationLongitude,r.declaredVehicleType,r.declaredWeightKg,r.mobilityCondition,r.description,r.searchAttemptNumber,r.searchDeadline,r.configurationRevision,r.configurationSnapshot,r.createdAt,r.updatedAt,r.closedAt,r.version,evaluations.latest(r.id)); }
+ private RequestView view(AssistanceRequest r) { return new RequestView(r.id,r.vehicle.getId(),r.status,r.firstAssignedAt,r.closureReasonCode,r.originLatitude,r.originLongitude,r.destinationLatitude,r.destinationLongitude,r.declaredVehicleType,r.declaredWeightKg,r.mobilityCondition,r.description,r.searchAttemptNumber,r.searchDeadline,r.configurationRevision,r.configurationSnapshot,r.createdAt,r.updatedAt,r.closedAt,r.version,r.resourceReleasePending,evaluations.latest(r.id)); }
  private HistoryView view(RequestStatusHistory h) { return new HistoryView(h.id,h.request.getId(),h.previousStatus,h.newStatus,h.actorType,h.actorSubject,h.reason,h.details,h.operationKey,h.occurredAt); }
  public VehicleView vehicle(UUID id,String subject) { return view(owned(id,subject)); }
  public PageView<VehicleView> vehicles(String subject,int p,int size,Registration status) { Pageable pageable=page(p,size,"createdAt");return paged((status==null?vehicles.findByOwnerSubject(subject,pageable):vehicles.findByOwnerSubjectAndRegistrationStatus(subject,status,pageable)).map(this::view)); }
@@ -88,7 +89,7 @@ public class RequestService {
  public RequestView request(UUID id,Jwt jwt) { return view(visible(id,jwt)); }
  public PageView<RequestView> requests(Jwt jwt,int p,int size,Status status) {
   Pageable pageable=page(p,size,"createdAt");
-  if(!admin(jwt) && !driver(jwt)) return paged(Page.<RequestView>empty(pageable));
+  if(!admin(jwt) && !driver(jwt)) return paged(requests.forOperator(jwt.getSubject(),status==null?null:status.name(),PageRequest.of(p,size,Sort.by("created_at").and(Sort.by("id")))).map(this::view));
   return paged(requests.visible(admin(jwt)?null:jwt.getSubject(),status,pageable).map(this::view));
  }
  public PageView<HistoryView> history(UUID id,Jwt jwt,int p,int size) { visible(id,jwt);return paged(histories.findByRequestId(id,page(p,size,"occurredAt")).map(this::view)); }
@@ -100,6 +101,15 @@ public class RequestService {
   String fingerprint=digest(d.reason().strip());var previous=histories.findByRequestIdAndOperationKey(id,operationKey);
   if(previous.isPresent()) { require(previous.get().actorSubject.equals(subject) && previous.get().requestFingerprint.equals(fingerprint),HttpStatus.CONFLICT);return view(previous.get()); }
   require(cancellable(req),HttpStatus.CONFLICT);
+  if(jdbc.queryForObject("select count(*) from pending_actions p join assignments a on a.id=p.assignment_id where a.request_id=? and p.kind='CONFIRM' and p.status<>'COMPLETED'",Long.class,id)>0)throw new ResponseStatusException(HttpStatus.CONFLICT,"ACCEPTANCE_CONFIRMATION_PENDING");
+  var assignmentIds=jdbc.queryForList("select id from assignments where request_id=? and status in ('RESERVING','PROPOSED')",UUID.class,id);
+  for(UUID assignment:assignmentIds){
+   jdbc.update("update assignments set status='CANCELLED',closed_at=? where id=?",java.sql.Timestamp.from(now()),assignment);
+   // Resolve an uncertain RESERVE first; its completion creates the compensating RELEASE.
+   long pending=jdbc.queryForObject("select count(*) from pending_actions where assignment_id=? and kind='RESERVE' and status<>'COMPLETED'",Long.class,assignment);
+   if(pending==0)jdbc.update("insert into pending_actions(id,assignment_id,kind,status,created_at,updated_at) values (?,?,'RELEASE','PENDING',?,?) on conflict(assignment_id,kind) do nothing",UUID.randomUUID(),assignment,java.sql.Timestamp.from(now()),java.sql.Timestamp.from(now()));
+  }
+  req.resourceReleasePending=req.resourceReleasePending || !assignmentIds.isEmpty();
   Status old=req.status;req.status=Status.CANCELLED;req.closureReasonCode="DRIVER_CANCELLED";req.closedAt=req.updatedAt=now();requests.flush();
   return view(event(req,old,Status.CANCELLED,subject,d.reason().strip(),operationKey,fingerprint));
  }

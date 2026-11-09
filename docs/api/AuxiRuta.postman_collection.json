@@ -1,0 +1,1516 @@
+{
+  "info" : {
+    "name" : "AuxiRuta - Entrega MVP",
+    "description" : "Preparar el operador con DemoDataSetupTest. Obtener tres tokens PKCE y cargarlos en el entorno local. Ejecutar todas las carpetas en Runner, una iteracion, delay 0. Plazos normales. Detiene el recorrido ante errores; no forzar limpieza de un servicio en curso. Ver docs/ENTREGA.md.",
+    "schema" : "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item" : [ {
+    "name" : "01 - Seguridad y precondiciones",
+    "item" : [ {
+      "name" : "01 Sin token",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/vehicles",
+        "description" : "Rol: sin token. HTTP esperado: 401. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "noauth"
+        }
+      },
+      "event" : [ {
+        "listen" : "prerequest",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "for (const role of ['admin','operator','driver']) { if (!pm.environment.get(role+'_token')) throw new Error('Falta token '+role); }", "pm.collectionVariables.set('run_suffix', pm.variables.replaceIn('{{$randomUUID}}').replace(/-/g,'').slice(0,6));", "pm.collectionVariables.set('missing_id', pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('assignment_page','0');", "pm.collectionVariables.set('key_active',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_outside',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_create',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_duplicate',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_badrole',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_accept',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_cancel_denied',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_early_arrival',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_dispatch',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_early_load',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_arrival',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_load',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_transport',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_badnote',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_complete',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_cancel_create',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_cancel',pm.variables.replaceIn('{{$randomUUID}}'));", "pm.collectionVariables.set('key_inactive',pm.variables.replaceIn('{{$randomUUID}}'));", "for(const k of ['truck_id','vehicle_id','request_id','cancel_request_id','assignment_id','poll_start'])pm.collectionVariables.unset(k);" ]
+        }
+      }, {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=401;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "02 DRIVER sin permiso administrativo",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/operators",
+        "description" : "Rol: DRIVER. HTTP esperado: 403. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=403;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "03 Perfil operador preparado",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/operators/me",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.collectionVariables.set('operator_id',at('/id'));", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "04 Operador sin grua vinculada",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/tow-trucks/assigned-to-me",
+        "description" : "Rol: OPERATOR. HTTP esperado: 404. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=404;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "05 Reglas normales",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/configuration/assistance",
+        "description" : "Rol: ADMIN. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{admin_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/rules-version'))===pm.variables.replaceIn('AR-MVP-5');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    } ]
+  }, {
+    "name" : "02 - Recursos reproducibles",
+    "item" : [ {
+      "name" : "06 Crear grua",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/tow-trucks",
+        "description" : "Rol: ADMIN. HTTP esperado: 201. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{admin_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"licensePlate\" : \"TEST{{run_suffix}}\",\n  \"maximumLoadKg\" : 3000,\n  \"supportsNonRollable\" : true,\n  \"supportedTypes\" : [ \"CAR\" ]\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=201;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.collectionVariables.set('truck_id',at('/id'));", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "07 Vincular operador",
+      "request" : {
+        "method" : "PUT",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/tow-trucks/{{truck_id}}/operator",
+        "description" : "Rol: ADMIN. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{admin_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"operatorId\" : \"{{operator_id}}\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "08 Activar grua",
+      "request" : {
+        "method" : "PATCH",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_active}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/tow-trucks/{{truck_id}}/operational-status",
+        "description" : "Rol: ADMIN. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{admin_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"status\" : \"ACTIVE\",\n  \"reason\" : \"Preparar demostracion de entrega\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "09 Ubicacion del recurso",
+      "request" : {
+        "method" : "PUT",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/tow-trucks/assigned-to-me/location",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"latitude\" : -31.42,\n  \"longitude\" : -64.19\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "10 Operador disponible",
+      "request" : {
+        "method" : "PATCH",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/operators/me/availability",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"status\" : \"AVAILABLE\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "11 Crear vehiculo",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/vehicles",
+        "description" : "Rol: DRIVER. HTTP esperado: 201. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"licensePlate\" : \"TST{{run_suffix}}\",\n  \"vehicleType\" : \"CAR\",\n  \"declaredWeightKg\" : 1000\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=201;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.collectionVariables.set('vehicle_id',at('/id'));", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "12 Patente duplicada",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/vehicles",
+        "description" : "Rol: DRIVER. HTTP esperado: 409. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"licensePlate\" : \"TST{{run_suffix}}\",\n  \"vehicleType\" : \"CAR\",\n  \"declaredWeightKg\" : 1000\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=409;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "13 Peso fuera de limites",
+      "request" : {
+        "method" : "PATCH",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/vehicles/{{vehicle_id}}",
+        "description" : "Rol: DRIVER. HTTP esperado: 400. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"declaredWeightKg\" : 499\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=400;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "14 Vehiculo inexistente",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/vehicles/{{missing_id}}",
+        "description" : "Rol: DRIVER. HTTP esperado: 404. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=404;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    } ]
+  }, {
+    "name" : "03 - Evaluacion y propuesta",
+    "item" : [ {
+      "name" : "15 Destino fuera de cobertura",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_outside}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests",
+        "description" : "Rol: DRIVER. HTTP esperado: 201. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"vehicleId\" : \"{{vehicle_id}}\",\n  \"originLatitude\" : -31.4167,\n  \"originLongitude\" : -64.1833,\n  \"destinationLatitude\" : -32.0,\n  \"destinationLongitude\" : -64.19,\n  \"mobilityCondition\" : \"ROLLABLE\",\n  \"description\" : \"Phase 10 delivery fixture\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=201;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/latestEvaluation/reasonCode'))===pm.variables.replaceIn('OUTSIDE_COVERAGE');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "16 Solicitud viable",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_create}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests",
+        "description" : "Rol: DRIVER. HTTP esperado: 201. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"vehicleId\" : \"{{vehicle_id}}\",\n  \"originLatitude\" : -31.4167,\n  \"originLongitude\" : -64.1833,\n  \"destinationLatitude\" : -31.42,\n  \"destinationLongitude\" : -64.19,\n  \"mobilityCondition\" : \"ROLLABLE\",\n  \"description\" : \"Phase 10 delivery fixture\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=201;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.collectionVariables.set('request_id',at('/id'));", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "17 Repeticion idempotente",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_create}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests",
+        "description" : "Rol: DRIVER. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"vehicleId\" : \"{{vehicle_id}}\",\n  \"originLatitude\" : -31.4167,\n  \"originLongitude\" : -64.1833,\n  \"destinationLatitude\" : -31.42,\n  \"destinationLongitude\" : -64.19,\n  \"mobilityCondition\" : \"ROLLABLE\",\n  \"description\" : \"Phase 10 delivery fixture\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/id'))===pm.variables.replaceIn('{{request_id}}');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "18 Exclusividad del vehiculo",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_duplicate}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests",
+        "description" : "Rol: DRIVER. HTTP esperado: 409. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"vehicleId\" : \"{{vehicle_id}}\",\n  \"originLatitude\" : -31.4167,\n  \"originLongitude\" : -64.1833,\n  \"destinationLatitude\" : -31.42,\n  \"destinationLongitude\" : -64.19,\n  \"mobilityCondition\" : \"ROLLABLE\",\n  \"description\" : \"Phase 10 delivery fixture\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=409;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "19 Edicion bloqueada",
+      "request" : {
+        "method" : "PATCH",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/vehicles/{{vehicle_id}}",
+        "description" : "Rol: DRIVER. HTTP esperado: 409. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"declaredWeightKg\" : 1100\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=409;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "20 Esperar propuesta y rutas reales",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}",
+        "description" : "Rol: DRIVER. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/status'))===pm.variables.replaceIn('AWAITING_ACCEPTANCE');", "if(!ready){const start=Number(pm.collectionVariables.get('poll_start')||Date.now());pm.collectionVariables.set('poll_start',start);if(Date.now()-start>45000){pm.execution.setNextRequest(null);pm.test('Resultado dentro de 45s',()=>pm.expect(ready).to.eql(true));}else{pm.execution.setNextRequest(pm.info.requestId);setTimeout(()=>{},500);}}else{pm.collectionVariables.unset('poll_start');pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));}", "if(ready)pm.test('Evaluacion vial real',()=>{pm.expect(data.latestEvaluation.result).to.eql('VIABLE');pm.expect(data.latestEvaluation.candidates.some(c=>c.eligible && c.approachDistanceM>0)).to.eql(true);});", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "21 Buscar propuesta propia paginada",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/operator/assignments?size=100&page={{assignment_page}}",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "const a=data.content.find(a=>a.requestId===pm.collectionVariables.get('request_id') && a.status==='PROPOSED');ready=!!a;if(a){pm.collectionVariables.set('assignment_id',a.id);}else{const page=Number(pm.collectionVariables.get('assignment_page'));pm.collectionVariables.set('assignment_page',page+1<data.totalPages?page+1:0);}", "if(!ready){const start=Number(pm.collectionVariables.get('poll_start')||Date.now());pm.collectionVariables.set('poll_start',start);if(Date.now()-start>45000){pm.execution.setNextRequest(null);pm.test('Resultado dentro de 45s',()=>pm.expect(ready).to.eql(true));}else{pm.execution.setNextRequest(pm.info.requestId);setTimeout(()=>{},500);}}else{pm.collectionVariables.unset('poll_start');pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));}", "", "})();" ]
+        }
+      } ]
+    } ]
+  }, {
+    "name" : "04 - Aceptacion y ejecucion",
+    "item" : [ {
+      "name" : "22 DRIVER no acepta propuestas",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_badrole}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assignments/{{assignment_id}}/acceptance",
+        "description" : "Rol: DRIVER. HTTP esperado: 403. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=403;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "23 Aceptar propuesta",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_accept}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assignments/{{assignment_id}}/acceptance",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "24 Esperar confirmacion durable",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}",
+        "description" : "Rol: DRIVER. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/status'))===pm.variables.replaceIn('ASSIGNED');", "if(!ready){const start=Number(pm.collectionVariables.get('poll_start')||Date.now());pm.collectionVariables.set('poll_start',start);if(Date.now()-start>45000){pm.execution.setNextRequest(null);pm.test('Resultado dentro de 45s',()=>pm.expect(ready).to.eql(true));}else{pm.execution.setNextRequest(pm.info.requestId);setTimeout(()=>{},500);}}else{pm.collectionVariables.unset('poll_start');pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));}", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "25 Cancelacion posterior prohibida",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_cancel_denied}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/cancellations",
+        "description" : "Rol: DRIVER. HTTP esperado: 409. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"reason\" : \"No permitido tras primera aceptacion\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=409;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "26 Vinculo comprometido",
+      "request" : {
+        "method" : "DELETE",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/tow-trucks/{{truck_id}}/operator",
+        "description" : "Rol: ADMIN. HTTP esperado: 409. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{admin_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=409;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "27 Llegada antes de despacho",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_early_arrival}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/arrival",
+        "description" : "Rol: OPERATOR. HTTP esperado: 409. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=409;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "28 Ubicacion bloqueada tras aceptar",
+      "request" : {
+        "method" : "PUT",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/tow-trucks/assigned-to-me/location",
+        "description" : "Rol: OPERATOR. HTTP esperado: 409. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"latitude\" : -31.42,\n  \"longitude\" : -64.19\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=409;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "29 Despachar",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_dispatch}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/dispatch",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/newStatus'))===pm.variables.replaceIn('DISPATCHED');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "30 Repetir despacho sin duplicar",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_dispatch}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/dispatch",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/newStatus'))===pm.variables.replaceIn('DISPATCHED');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "31 Cargar antes de llegar",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_early_load}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/loading",
+        "description" : "Rol: OPERATOR. HTTP esperado: 409. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=409;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "32 Llegada",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_arrival}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/arrival",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/newStatus'))===pm.variables.replaceIn('ARRIVED');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "33 Carga",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_load}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/loading",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/newStatus'))===pm.variables.replaceIn('VEHICLE_LOADED');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "34 Inicio de traslado",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_transport}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/transport-start",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/newStatus'))===pm.variables.replaceIn('IN_TRANSIT');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "35 Nota invalida",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_badnote}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/completion",
+        "description" : "Rol: OPERATOR. HTTP esperado: 400. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"note\" : \"corta\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=400;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('ProblemDetail',()=>{pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');pm.expect(data.status).to.eql(expected);});", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "36 Entrega",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_complete}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/completion",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"note\" : \"Vehiculo entregado en el destino acordado\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/newStatus'))===pm.variables.replaceIn('COMPLETED');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "37 Entrega idempotente",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_complete}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/completion",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"note\" : \"Vehiculo entregado en el destino acordado\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/newStatus'))===pm.variables.replaceIn('COMPLETED');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "38 Esperar liberacion confirmada",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}",
+        "description" : "Rol: DRIVER. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/resourceReleasePending'))===pm.variables.replaceIn('false');", "if(!ready){const start=Number(pm.collectionVariables.get('poll_start')||Date.now());pm.collectionVariables.set('poll_start',start);if(Date.now()-start>45000){pm.execution.setNextRequest(null);pm.test('Resultado dentro de 45s',()=>pm.expect(ready).to.eql(true));}else{pm.execution.setNextRequest(pm.info.requestId);setTimeout(()=>{},500);}}else{pm.collectionVariables.unset('poll_start');pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));}", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "39 Servicio completado",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}",
+        "description" : "Rol: DRIVER. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/status'))===pm.variables.replaceIn('COMPLETED');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "40 Historial de etapas",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{request_id}}/history?size=100",
+        "description" : "Rol: DRIVER. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "pm.test('Una transicion por etapa',()=>{for(const state of ['DISPATCHED','ARRIVED','VEHICLE_LOADED','IN_TRANSIT','COMPLETED'])pm.expect(data.content.filter(h=>h.newStatus===state).length).to.eql(1);});", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "41 Vehiculo editable nuevamente",
+      "request" : {
+        "method" : "PATCH",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/vehicles/{{vehicle_id}}",
+        "description" : "Rol: DRIVER. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"model\" : \"Entrega verificada\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    } ]
+  }, {
+    "name" : "05 - Cancelacion y cierre de fixtures",
+    "item" : [ {
+      "name" : "42 Operador no disponible",
+      "request" : {
+        "method" : "PATCH",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/operators/me/availability",
+        "description" : "Rol: OPERATOR. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{operator_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"status\" : \"UNAVAILABLE\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "43 Nueva solicitud sin recurso",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_cancel_create}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests",
+        "description" : "Rol: DRIVER. HTTP esperado: 201. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"vehicleId\" : \"{{vehicle_id}}\",\n  \"originLatitude\" : -31.4167,\n  \"originLongitude\" : -64.1833,\n  \"destinationLatitude\" : -31.42,\n  \"destinationLongitude\" : -64.19,\n  \"mobilityCondition\" : \"ROLLABLE\",\n  \"description\" : \"Phase 10 delivery fixture\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=201;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.collectionVariables.set('cancel_request_id',at('/id'));", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "44 Cancelar antes de aceptacion",
+      "request" : {
+        "method" : "POST",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_cancel}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{cancel_request_id}}/cancellations",
+        "description" : "Rol: DRIVER. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"reason\" : \"Cancelacion previa a primera aceptacion\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/newStatus'))===pm.variables.replaceIn('CANCELLED');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "45 Consultar cancelada",
+      "request" : {
+        "method" : "GET",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/assistance-requests/{{cancel_request_id}}",
+        "description" : "Rol: DRIVER. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{driver_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "ready=ready && String(at('/status'))===pm.variables.replaceIn('CANCELLED');", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "46 Inactivar grua de prueba",
+      "request" : {
+        "method" : "PATCH",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        }, {
+          "key" : "Idempotency-Key",
+          "value" : "{{key_inactive}}"
+        } ],
+        "url" : "{{base_url}}/api/v1/tow-trucks/{{truck_id}}/operational-status",
+        "description" : "Rol: ADMIN. HTTP esperado: 200. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{admin_token}}",
+            "type" : "string"
+          } ]
+        },
+        "body" : {
+          "mode" : "raw",
+          "raw" : "{\n  \"status\" : \"INACTIVE\",\n  \"reason\" : \"Demostracion finalizada correctamente\"\n}",
+          "options" : {
+            "raw" : {
+              "language" : "json"
+            }
+          }
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=200;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    }, {
+      "name" : "47 Desvincular recurso libre",
+      "request" : {
+        "method" : "DELETE",
+        "header" : [ {
+          "key" : "Content-Type",
+          "value" : "application/json"
+        } ],
+        "url" : "{{base_url}}/api/v1/tow-trucks/{{truck_id}}/operator",
+        "description" : "Rol: ADMIN. HTTP esperado: 204. Ejecutar la coleccion completa, en orden y con perfil normal. Los scripts solo encadenan las llamadas; la verificacion automatizada equivalente se implementa en Java.",
+        "auth" : {
+          "type" : "bearer",
+          "bearer" : [ {
+            "key" : "token",
+            "value" : "{{admin_token}}",
+            "type" : "string"
+          } ]
+        }
+      },
+      "event" : [ {
+        "listen" : "test",
+        "script" : {
+          "type" : "text/javascript",
+          "exec" : [ "(() => {", "const expected=204;", "pm.test('HTTP esperado',()=>pm.response.to.have.status(expected));", "if(pm.response.code!==expected){pm.execution.setNextRequest(null);throw new Error('Respuesta inesperada: revisar recursos antes de repetir');}", "const data=pm.response.code===204?{}:pm.response.json();", "const at=(p)=>p.split('/').slice(1).reduce((v,k)=>v==null?undefined:v[k],data);", "let ready=true;", "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);", "", "})();" ]
+        }
+      } ]
+    } ]
+  } ]
+}

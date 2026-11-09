@@ -1,6 +1,6 @@
 # Verificación con Java
 
-A partir de la fase 5 todas las pruebas mantenidas del backend se implementan en Java. Las referencias a scripts Python en el historial de cambios describen ejecuciones anteriores y no son instrucciones vigentes.
+A partir de la fase 5 todas las pruebas mantenidas del backend se implementan en Java.
 
 ## Pruebas aisladas y compilación
 
@@ -47,7 +47,7 @@ Solo para un realm creado con la configuración original de fase 2 que carezca d
 .\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.repairIdentity=true" "-Dtest=KeycloakScopeSetupTest"
 ```
 
-La operación Java asocia basic a ambos clientes, verifica el resultado y conserva usuarios/datos. Es optativa e idempotente. Sustituye al antiguo ensure_basic_scope.py. Las instalaciones nuevas ya importan el scope corregido.
+La operación Java asocia basic a ambos clientes, verifica el resultado y conserva usuarios/datos. Es optativa e idempotente. Las instalaciones nuevas ya importan el scope corregido.
 
 ## Criterios para las fases siguientes
 
@@ -66,3 +66,89 @@ Para exigir además una evaluación VIABLE con distancias reales:
 ```
 
 El quinto caso prepara una grúa TEST compatible y disponible, actualiza su ubicación, crea una solicitud y verifica traslado, aproximación positiva, candidato elegible y ranking 1. Comprueba también el rechazo por destino fuera de cobertura. Al finalizar cancela su solicitud pendiente, inactiva/desvincula la grúa y deja al operador no disponible. Requiere ORS_API_KEY válida y cuota disponible; una caída externa hace fallar explícitamente este caso. Ejecutar la clase completa, ya que los casos preparan recursos en orden. Las pruebas aisladas siguen independientes del proveedor.
+
+## Reservas y aceptación — fase 7
+
+```powershell
+.\fleet-service\mvnw.cmd -f fleet-service/pom.xml verify
+.\assistance-service\mvnw.cmd -f assistance-service/pom.xml verify
+.\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.phase7=true" "-Dtest=Phase7IntegrationTest"
+```
+
+ReservationServiceTest controla Clock y verifica ventana de reserva, vencimiento exclusivo, elegibilidad, liberación idempotente y conservación de una confirmación aunque venza su antigua retención. AssignmentCoordinatorTest verifica que una respuesta perdida no borre la intención ni produzca un reintento inmediato, que la compensación libere el mismo intento y que la recuperación conserve identificador y contenido.
+
+Phase7IntegrationTest realiza seis comprobaciones contra PostgreSQL, Keycloak, Gateway, Fleet y Assistance reales:
+
+1. Dos reservas simultáneas de los mismos recursos: una queda HELD y la otra obtiene resultado terminal; confirmación/liberación son idempotentes y un PUT tardío no revive la reserva liberada.
+2. Carrera aceptación/cancelación: una operación vence y la otra devuelve 409; la solicitud termina ASSIGNED o CANCELLED coherentemente.
+3. Aceptación durable: fija firstAssignedAt, impide cancelar y bloquea cambios de capacidad y registro de recursos comprometidos.
+4. Rechazo con motivo: valida longitud, permite repetir la respuesta idéntica, rechaza contenido distinto y libera antes de otra propuesta.
+5. Respuesta de confirmación perdida: prepara la intención durable en la base de prueba, confirma realmente en Fleet, comprueba que cancelar devuelve 409, reinicia Assistance y recupera la aceptación con la misma clave. firstAssignedAt conserva el instante original de Fleet.
+
+6. Evidencia conservada durante la propuesta: bloquea la actualización de ubicación con 409, envejece las rutas del fixture más de 300 segundos y comprueba la aceptación sin nuevas llamadas a ORS.
+
+Ejecutar esta suite por separado de BackendIntegrationTest, sin otras demostraciones concurrentes. Requiere operator.demo sin grúa vinculada al comenzar y clave ORS válida. Crea recursos TEST/TST y conserva sus filas para inspección. La preparación del quinto caso reproduce mediante SQL el punto exacto de interrupción; no existe un endpoint productivo para simular estados o modificar el reloj.
+
+Para aislar los escenarios de reservas de la ejecución del traslado, el teardown de esta suite libera sus reservas por la API técnica y cierra exclusivamente sus propias filas de prueba mediante SQL, con motivo TEST_FIXTURE_CLEANUP. Esto es limpieza de fixtures, no una operación de negocio ni un caso de servicio completado. Deja la grúa nueva INACTIVE/desvinculada y el operador UNAVAILABLE. El reinicio de Assistance forma parte del quinto caso.
+
+## Ejecución del servicio — fase 8
+
+```powershell
+.\assistance-service\mvnw.cmd -f assistance-service/pom.xml verify
+.\fleet-service\mvnw.cmd -f fleet-service/pom.xml verify
+.\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.phase8=true" "-Dtest=Phase8IntegrationTest"
+```
+
+ExecutionRulesTest verifica los predecesores de cada acción, vencimiento exclusivo del despacho y huellas de idempotencia. DispatchValidatorTest usa Clock fijo y dependencias controladas para ubicación antigua después de aceptar, sin rechazo por antigüedad, habilitación estricta hasta el fin estimado, reserva inválida, cuota temporal y ausencia confirmada de ruta. ExecutionServiceTest comprueba que un fallo de revalidación no aplique la transición y que repetir una entrega reintente su liberación sin volver a completarla.
+
+Phase8IntegrationTest ejecuta tres escenarios con los contenedores y rutas reales:
+
+1. Recorrido completo desde una asignación aceptada: rechaza saltos de estado, roles incorrectos y otro operador no asignado, exige nota válida, verifica historial único e idempotencia, llega a COMPLETED, libera la reserva y permite editar el vehículo nuevamente. La grúa conserva ACTIVE después de liberarse.
+2. Despacho inválido por ubicación antigua y plazo vencido. Modifica exclusivamente los timestamps de sus fixtures mediante SQL; el backend no expone endpoints para alterar tiempos. Ninguna llamada rechazada declara la salida; el scheduler puede iniciar la alternativa por vencimiento antes de la consulta posterior.
+3. Caída de Fleet durante la entrega: detiene ese contenedor, completa localmente con resourceReleasePending, comprueba que otra solicitud del mismo vehículo devuelve 409 y reinicia Fleet. Repetir la entrega con su clave original no duplica el evento; la prueba espera la liberación, que también puede resolver el scheduler.
+
+Requiere ORS_API_KEY válida, operador demo libre y ejecución aislada de otras suites/demostraciones. Reutiliza la preparación de recursos de la suite de fase 7. Los servicios completados normalmente quedan conservados como COMPLETED; el teardown libera y cierra solamente los fixtures que quedaron a mitad del proceso. No constituye un endpoint de negocio. Fleet se reinicia incluso si el escenario de caída falla; las grúas de prueba terminan inactivas/desvinculadas y el operador no disponible.
+
+La suite de fase 8 crea una identidad temporal adicional para verificar el 404 de otro operador y la elimina al finalizar. Esa administración usa solo las credenciales locales de prueba, sin agregarlas a las aplicaciones.
+
+## Automatización y recuperación — fase 9
+
+Las pruebas aisladas `AutomationStoreTest` y `AutomationConfigurationTest` usan Clock fijo y dependencias controladas: vencimiento, incertidumbre de confirmación, cinco ofertas, dos reemplazos, espera de liberación, exclusión de estados en ejecución, plazos demo y backoff. Fleet comprueba la ventana demo y la repetición de reservas persistidas antes de añadir los campos temporales.
+
+Para la integración, iniciar desde la raíz en PowerShell:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "docker,demo"
+docker compose up -d --build
+.\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.phase9=true" "-Dtest=Phase9IntegrationTest"
+```
+
+Esperar que los servicios hayan iniciado antes de ejecutar la suite. Requiere ORS real con cuota, operador demo sin grúa vinculada y ninguna otra prueba o demostración simultánea. La suite verifica ocho escenarios:
+
+1. Disponibilidad posterior a la solicitud: búsqueda automática, propuesta y vencimiento sin cambiar el número ni el plazo del intento.
+2. Cierre automático de búsqueda sin recursos.
+3. Dos reemplazos por despacho vencido y cierre al agotar el límite, sin restaurar el derecho a cancelar.
+4. Confirmación remota realizada con respuesta perdida: recuperación tras reiniciar Assistance, aun vencido el plazo de búsqueda y sin repetir la aceptación.
+5. Reserva incierta y cancelación: compensación automática del mismo identificador tras reiniciar.
+6. Entrega durante caída de Fleet: conservación de COMPLETED y liberación tras reiniciar ambos servicios, sin repetir la entrega.
+7. Cinco propuestas vencidas: cierre por cupo sin extender el plazo original.
+8. Rechazo explícito: el operador queda excluido de nuevas propuestas en el segundo intento de esa solicitud.
+
+El perfil demo utiliza búsqueda de 60 s, evaluación cada 2 s, retención de 10 s, ventana mínima de 3 s y despacho de 20 s. Las cuotas del proveedor, cupos, ubicación y estimaciones del traslado permanecen iguales. Las solicitudes conservan el snapshot con el que nacieron; cambiar el perfil afecta las nuevas solicitudes.
+
+La prueba modifica exclusivamente timestamps e intenciones de sus propias filas para reproducir puntos de caída y límites sin largas esperas. Conserva el resultado de servicios completados y limpia las reservas de sus fixtures con la API técnica. No agrega endpoints productivos para adelantar el reloj o forzar estados. La paginación de propuestas permite repetir las suites aunque haya más de cien registros previos.
+
+Restaurar el entorno normal antes de ejecutar las suites de fases anteriores:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "docker"
+docker compose up -d
+Remove-Item Env:SPRING_PROFILES_ACTIVE
+```
+
+Las suites de fases 7, 8 y 9 se ejecutan por separado. Las comprobaciones observan la recuperación eventual: una respuesta HTTP exitosa de entrega no significa que la dependencia remota ya haya confirmado su liberación.
+
+
+## Entrega — fase 10
+
+DeliveryArtifactsTest verifica que los 47 pedidos publicados coincidan con su definición Java. DeliveryIntegrationTest ejecuta esas solicitudes, compara los contratos OpenAPI con los controladores y comprueba el recorrido, estados y efectos. DemoDataSetupTest prepara el operador por APIs. La guía [ENTREGA.md](ENTREGA.md) documenta todos los comandos y escenarios. Verify-AuxiRuta.ps1 reúne las suites anteriores, con integración y perfil demo opcionales; no ejecutarlas simultáneamente.

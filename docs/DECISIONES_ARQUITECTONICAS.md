@@ -3,10 +3,10 @@
 | Atributo | Valor |
 |---|---|
 | Sistema | AuxiRuta |
-| Versión documental | 2.5 |
-| Fecha | 4 de noviembre de 2026 |
+| Versión documental | 2.7 |
+| Fecha | 9 de noviembre de 2026 |
 | Línea base funcional | AR-MVP-5 |
-| Estado | Diseño definido; implementación pendiente |
+| Estado | Fases 1 a 10 implementadas; entrega y verificación documentadas |
 | Alcance | Backend de asistencia y remolque de vehículos livianos |
 
 ## Índice
@@ -181,7 +181,7 @@ Los valores siguientes constituyen la única tabla normativa de parámetros de e
 | Reasignaciones posteriores a una aceptación | 2; hasta 3 intentos totales de búsqueda |
 | Revisión de búsqueda / reconciliación | Cada 30 s / 15 s |
 | Antigüedad de ubicación al reservar/aceptar | Hasta 300 s |
-| Antigüedad de ubicación al despachar | Hasta 120 s |
+| Antigüedad de ubicación al despachar | Sin límite de antigüedad tras aceptar; se asume permanencia en la posición informada |
 | Antigüedad de evaluación de rutas | Hasta 300 s |
 | Plazo para despacho desde aceptación | 300 s |
 | Ajuste máximo de coordenada a la red vial | 100 m |
@@ -242,7 +242,7 @@ Los tiempos de carga y descarga planifican la habilitación. No obligan a espera
 
 Las búsquedas alternativas anteriores al despacho conservan origen y destino originales y aplican los mismos límites de distancia del traslado inicial.
 
-Las rutas se reutilizan únicamente con iguales coordenadas, perfil y revisión de datos/reglas, dentro de su vigencia. Una evaluación vencida se recalcula antes de aceptar/despachar. Si la información no puede validarse, la acción no se habilita.
+Las rutas se reutilizan únicamente con iguales coordenadas, perfil y revisión de datos/reglas, dentro de su vigencia. Al emitir una propuesta se exige una evaluación vigente. Esa evaluación se conserva durante toda la ventana de aceptación aunque supere los 300 segundos, bajo el supuesto de posición y condiciones constantes. Aceptar no recalcula rutas ni extiende expiresAt o searchDeadline; Fleet sigue validando recursos y ubicación de hasta 300 segundos. Antes de despachar se revalidan las rutas y se recalculan si vencieron.
 
 ### 5.6 Búsqueda, selección y propuestas
 
@@ -250,7 +250,7 @@ El intento inicial comienza en createdAt e incluye evaluación, consultas y prop
 
 En cada ronda se preseleccionan los candidatos elegibles más cercanos por Haversine, hasta el máximo definido. Entre los que tengan evaluación de ruta válida se ordena por menor presupuesto de llegada, mayor tiempo libre y UUID de grúa lexicográfico. No se garantiza un óptimo global entre toda la flota.
 
-Solo hay una propuesta activa por solicitud. No se vuelve a proponer una pareja grúa/operador rechazada, vencida o fallida en esa solicitud. Un recurso anteriormente ocupado sin propuesta fallida puede evaluarse al quedar libre.
+Solo hay una propuesta activa por solicitud. Un operador que rechaza queda excluido de nuevas propuestas para esa solicitud, incluidos los intentos posteriores. Si aceptó y venció su plazo de despacho, puede volver a competir tras liberar el recurso y cumplir nuevamente las condiciones de elegibilidad. Un recurso anteriormente ocupado sin propuesta fallida puede evaluarse al quedar libre.
 
 Una reserva creada consume propuesta; un conflicto que impidió crearla no la consume. Al finalizar el plazo o agotar propuestas sin aceptación se utiliza UNFULFILLED, con motivo diferenciado: NO_AVAILABLE_RESOURCE, NO_VIABLE_CANDIDATE, OFFER_LIMIT_REACHED o DEPENDENCY_TIMEOUT.
 
@@ -302,7 +302,7 @@ La creación exige Idempotency-Key de hasta 100 caracteres, única por conductor
 
 ### 5.12 Demostración temporal y pruebas
 
-Se define un perfil `demo` para observar vencimientos en Postman o Swagger con plazos reducidos. Su implementación queda pendiente junto con los servicios. El perfil normal conserva AR-MVP-5 y sus valores; el perfil demo identifica sus snapshots como `AR-MVP-5-DEMO` y se utiliza exclusivamente en demostraciones.
+Se define un perfil `demo` para observar vencimientos en Postman o Swagger con plazos reducidos. Su implementación está disponible desde fase 9. El perfil normal conserva AR-MVP-5 y sus valores; el perfil demo identifica sus snapshots como `AR-MVP-5-DEMO` y se utiliza exclusivamente en demostraciones.
 
 | Parámetro | Normal | Demo |
 |---|---|---|
@@ -314,9 +314,9 @@ Se define un perfil `demo` para observar vencimientos en Postman o Swagger con p
 
 Los cupos de cinco propuestas, cinco candidatos por ronda y dos reasignaciones se mantienen. El resto de los parámetros conserva los valores normales: el perfil reduce plazos de espera, no escala el tiempo global ni los tiempos de viaje, carga o descarga. El perfil debe activarse de manera coherente en ambos servicios; Fleet sigue recibiendo y verificando los deadlines de Assistance. Cada solicitud conserva los parámetros efectivos utilizados, sin alterar solicitudes ya existentes al cambiar el perfil.
 
-Los overrides de referencia están en [Parámetros demo](documentacionPartes/AuxiRuta-parametros-demo.yml). Deben integrarse en la configuración real al implementar; guardarlos en docs no activa un perfil. El README de ejecución deberá indicar cómo activar `SPRING_PROFILES_ACTIVE=demo` y cómo volver al perfil normal.
+Los overrides de referencia están en [Parámetros demo](documentacionPartes/AuxiRuta-parametros-demo.yml). RulesConfiguration aplica estos valores al activar `SPRING_PROFILES_ACTIVE=docker,demo` en Compose; volver a `docker` restablece los valores normales para nuevas solicitudes. Fleet recibe los tiempos del intento en el contrato de reserva. La guía PRUEBAS_JAVA.md documenta los comandos; el YAML de docs es una referencia y no se carga automáticamente.
 
-El código temporal usa un `Clock` inyectado. En ejecución normal y demo se utiliza hora real UTC; en tests se controla el reloj para verificar límites sin esperas reales. La prueba avanza el reloj e invoca explícitamente el procesamiento de vencimientos: cambiar la hora simulada no dispara por sí solo el scheduler. Las pruebas integradas deben controlar coherentemente los relojes de ambos servicios. No se modifica la hora del sistema operativo ni se agregan endpoints públicos para manipularla.
+El código temporal usa un `Clock` inyectado. En ejecución normal y demo se utiliza hora real UTC; en tests se controla el reloj para verificar límites sin esperas reales. La prueba avanza el reloj e invoca explícitamente el procesamiento de vencimientos: cambiar la hora simulada no dispara por sí solo el scheduler. Las pruebas integradas usan hora real y el perfil demo; para reproducir una interrupción o un vencimiento modifican exclusivamente timestamps e intenciones de sus propios fixtures en PostgreSQL. No se modifica la hora del sistema operativo ni se agregan endpoints públicos para manipularla.
 
 ## 6. Estados y transiciones
 
@@ -656,13 +656,16 @@ Las condiciones de arranque y healthchecks deben verificar disponibilidad real s
 | POSTGRES_ADMIN_PASSWORD | Inicialización del motor, separada de las aplicaciones |
 | ASSISTANCE_DB_PASSWORD, FLEET_DB_PASSWORD, KEYCLOAK_DB_PASSWORD | Contraseñas independientes por base |
 | KC_DB, KC_DB_URL, KC_DB_USERNAME, KC_DB_PASSWORD | Configuración de persistencia de Keycloak |
+| SPRING_PROFILES_ACTIVE, AUXIRUTA_AUTOMATION_ENABLED | Perfil normal/demo y habilitación técnica del scheduler; automatización activa por defecto |
 | KC_HOSTNAME, KC_HOSTNAME_BACKCHANNEL_DYNAMIC | Dirección pública y acceso interno de Keycloak |
 
 En Compose, las URLs funcionales de base son `jdbc:postgresql://postgres:5432/assistance_db` y `jdbc:postgresql://postgres:5432/fleet_db`. La de Keycloak corresponde a `keycloak_db`; Fleet se accede mediante `http://fleet-service:8081` y Assistance mediante `http://assistance-service:8082`.
 
 `.env.example` contiene nombres y valores ficticios; `.env` no se versiona. Los secretos requeridos no tienen contraseñas reales de respaldo en código. Las credenciales iniciales de administración de Keycloak se inyectan conforme a la versión elegida.
 
-Los parámetros de negocio se cargan con @ConfigurationProperties y validación. El archivo de referencia [AuxiRuta-parametros-MVP.yml](documentacionPartes/AuxiRuta-parametros-MVP.yml) debe coincidir con la sección 5 y distribuirse/importarse en la configuración efectiva; almacenarlo en docs no lo carga automáticamente.
+Los parámetros de negocio se cargan mediante RulesConfiguration desde el recurso rules/mvp.yml y los overrides del perfil demo; cada solicitud conserva una copia inmutable de sus valores efectivos. El archivo de referencia [AuxiRuta-parametros-MVP.yml](documentacionPartes/AuxiRuta-parametros-MVP.yml) debe coincidir con la sección 5 y distribuirse/importarse en la configuración efectiva; almacenarlo en docs no lo carga automáticamente.
+
+La entrega ejecutable y la evidencia de verificación se documentan en [ENTREGA.md](ENTREGA.md) y [cambios.md](cambios.md). Los contratos públicos exportados y la colección se encuentran en docs/api; el contrato técnico privado se documenta en INTEGRACION_INTERNA.md.
 
 ### 15.3 Organización documental y técnica
 
@@ -678,14 +681,14 @@ BACK-TPI-G1/
 │   │   ├── bd1.png / bd2.png          [antecedentes]
 │   │   ├── AuxiRuta_C1.png            [histórico]
 │   │   └── AuxiRuta_C2.png            [histórico]
-│   └── api/                         [por construir]
-├── auxiruta-commons/                [por construir]
-├── fleet-service/                  [por construir]
-├── assistance-service/             [por construir]
-├── api-gateway/                    [por construir]
-├── infra/                          [por construir]
-├── docker-compose.yml              [por construir]
-└── .env.example                    [por construir]
+│   └── api/                         [contratos y colección implementados]
+├── auxiruta-commons/                [implementado]
+├── fleet-service/                  [implementado]
+├── assistance-service/             [implementado]
+├── api-gateway/                    [implementado]
+├── infra/                          [implementado]
+├── docker-compose.yml              [implementado]
+└── .env.example                    [implementado]
 ```
 
 El C1 representa actores, sistema e integraciones externas; el C2, contenedores, tecnologías y comunicaciones. La fuente vigente es [C1 y C2](diagramas/AuxiRuta_C1_C2.md); los PNG anteriores son históricos y no describen AR-MVP-5. Los diagramas deben verificarse contra el despliegue final. La biblioteca se representa como dependencia, no contenedor. Los scripts shell se guardan con LF y los archivos de compilación/secretos se excluyen de Git.
@@ -829,5 +832,18 @@ Las rutas de negocio de esta tabla llevan prefijo `/api/v1`. Los casos de límit
 | 2.3 | 2026-11-04 | AR-MVP-5: eliminación de la detección automática de demoras, sus registros, endpoints, entidad y parámetros; conservación del historial de etapas con sus fechas |
 | 2.4 | 2026-11-04 | Perfil demo con plazos reducidos y pruebas con Clock; conserva las reglas y cupos de AR-MVP-5 para ejecución normal |
 | 2.5 | 2026-11-04 | Revisión de preparación: modelo persistente consolidado y DER editable, precisión de permisos y fallos de integración, cuotas/URL de rutas, pruebas y secuencia de construcción; sin cambio de reglas AR-MVP-5 |
+| 2.6 | 2026-11-08 | Estado de construcción actualizado hasta fase 9; activación real del perfil demo, recuperación persistente y configuración. Se conserva AR-MVP-5 sin cambiar límites normales ni alcance |
+| 2.7 | 2026-11-09 | Entrega de fase 10: colección, contratos públicos y privados, preparación de datos y verificación Java. Estado de construcción actualizado sin cambiar AR-MVP-5; guía operativa en ENTREGA.md |
 
 Toda revisión posterior debe agregar una entrada y precisar las secciones afectadas. Antes de declarar una capacidad implementada se deben registrar su evidencia y verificación. Las versiones exactas del entorno Java/Docker, la configuración efectiva de Keycloak, los contratos OpenAPI, las restricciones SQL y la verificación de las cuotas de la cuenta se completarán durante la construcción sin modificar silenciosamente esta línea base.
+
+## Ajuste de ubicación acordado el 9 de noviembre de 2026
+
+La ubicación informada se considera fija hasta la salida. Su vigencia de 300 segundos, inclusiva, se comprueba al seleccionar, reservar y confirmar una propuesta. Superado ese plazo, el operador debe volver a enviar coordenadas para recibir o aceptar propuestas. Una asignación ya aceptada conserva esa posición sin caducidad por antigüedad: no se exige actualizar para despachar ni se libera por ese motivo. Permanecen vigentes la comprobación de rutas, la habilitación y el plazo independiente de 300 segundos para declarar el despacho. Este ajuste sustituye la restricción previa de ubicación de 120 segundos; no elimina los controles de ubicación para una futura solicitud.
+## Ubicación bloqueada durante propuesta o servicio — 9 de noviembre de 2026
+
+El operador puede informar coordenadas mientras su grúa esté libre. Desde que Fleet crea una retención HELD, y durante el compromiso CONFIRMED, la actualización devuelve 409 sin modificar coordenadas ni locationUpdatedAt, incluso si se envían las mismas coordenadas. Se asume permanencia en la posición informada hasta el despacho. El bloqueo comparte el bloqueo transaccional de grúa con la reserva para evitar una carrera entre ofrecer y actualizar.
+
+Si el operador rechaza una propuesta, o esta vence o el conductor cancela antes de aceptación, se vuelve a permitir informar ubicación cuando Fleet confirma la liberación o materializa la expiración. Mientras la liberación sea incierta no se permite actualizar. El operador rechaza propuestas: no se incorpora una cancelación operativa posterior a aceptar. Una grúa libre puede actualizar su ubicación aunque todavía tenga vigencia; superar 300 segundos exige actualizarla para nuevas propuestas y confirmaciones.
+
+Este ajuste elimina el cambio de coordenadas entre propuesta y aceptación identificado en H3. No demuestra por sí mismo la vigencia temporal de las rutas cacheadas: ese borde de la auditoría sigue pendiente de verificación específica. H1 continúa pendiente.

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.*;
 import static com.auxiruta.fleet.catalog.FleetTypes.*;
 import static com.auxiruta.fleet.catalog.FleetDtos.*;
 class FleetServiceTest {
+ @BeforeEach void reservations(){org.springframework.test.util.ReflectionTestUtils.setField(service,"reservations",mock(ReservationRepository.class));}
  final OperatorRepository operators=mock(OperatorRepository.class);
  final TowTruckRepository trucks=mock(TowTruckRepository.class);
  final TruckStatusHistoryRepository history=mock(TruckStatusHistoryRepository.class);
@@ -39,4 +40,10 @@ class FleetServiceTest {
   assertEquals(Operational.ACTIVE,service.status(t.id,new StatusChange(Operational.ACTIVE,"Reason"),"admin","key").newStatus());
   assertEquals(Operational.MAINTENANCE,t.operationalStatus);verify(history,never()).save(any());
  }
-}
+ @Test void committedTruckCannotChangeLocationButReleasedTruckCan() {
+  Operator o=new Operator();o.keycloakSubject="subject";TowTruck t=new TowTruck();t.operator=o;t.latitude=BigDecimal.ONE;t.longitude=BigDecimal.ONE;t.locationUpdatedAt=instant.minusSeconds(301);
+  when(trucks.assignedId("subject")).thenReturn(Optional.of(t.id));when(trucks.lockById(t.id)).thenReturn(Optional.of(t));
+  ReservationRepository reservations=(ReservationRepository)org.springframework.test.util.ReflectionTestUtils.getField(service,"reservations");when(reservations.busy(t.id,null)).thenReturn(true);
+  assertEquals(409,assertThrows(ResponseStatusException.class,()->service.location("subject",new Location(BigDecimal.ZERO,BigDecimal.ZERO))).getStatusCode().value());assertEquals(BigDecimal.ONE,t.latitude);assertEquals(instant.minusSeconds(301),t.locationUpdatedAt);verify(trucks,never()).flush();
+  when(reservations.busy(t.id,null)).thenReturn(false);assertEquals(BigDecimal.ZERO,service.location("subject",new Location(BigDecimal.ZERO,BigDecimal.ZERO)).latitude());
+ }}

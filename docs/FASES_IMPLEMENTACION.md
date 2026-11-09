@@ -17,8 +17,14 @@ Plan acordado por el equipo. Cada fase verifica la integridad de la anterior y r
 
 Las restricciones administrativas de la fase 4 incluyen validación, unicidad, exclusividad del vínculo, control de identidad y consistencia local. El rechazo de modificaciones por reservas HELD/CONFIRMED se conecta en fase 7, cuando se incorporan dichas reservas; no se simula una ocupación persistente en la fase 4.
 
-Desde fase 5, todas las pruebas automatizadas mantenidas se escriben en Java (JUnit/Mockito e integración HTTP/JPA). Las pruebas anteriores en Python se reemplazaron. La colección Postman de fase 10 complementa estas pruebas. Véase [PRUEBAS_JAVA.md](PRUEBAS_JAVA.md).
+Desde fase 5, todas las pruebas automatizadas mantenidas se escriben en Java (JUnit/Mockito e integración HTTP/JPA). La colección Postman de fase 10 complementa estas pruebas. Véase [PRUEBAS_JAVA.md](PRUEBAS_JAVA.md).
 
-## Avance al 8 de noviembre de 2026
+## Avance al 9 de noviembre de 2026
 
-Fases 1 a 6 implementadas. La fase 6 ejecuta una evaluación inicial sincrónica después de persistir la solicitud y guarda resultados/candidatos. VIABLE es resultado de evaluación, no un estado de asignación: la solicitud permanece PENDING_EVALUATION hasta incorporar propuestas/reservas en fase 7. Los reintentos, cierres por plazo y recuperación automática se integran en fase 9.
+Fases 1 a 10 implementadas. La evaluación inicial puede iniciar una reserva exclusiva y publicar una propuesta; la aceptación confirmada por Fleet lleva a ASSIGNED. Las acciones remotas pendientes son durables y reutilizan el mismo intento. Los reintentos periódicos, cierres por plazo y reconciliación automática están implementados en fase 9; las acciones de ejecución y finalización ya permiten completar el servicio y liberar recursos.
+
+
+Fase 9 verificada: 98 pruebas aisladas y 19 escenarios integrales aprobados entre automatización y regresiones. La fase 10 agrega la colección Postman, contratos OpenAPI, preparación reproducible y scripts de arranque/verificación; véase [ENTREGA.md](ENTREGA.md). El detalle de ejecución, correcciones y aprendizaje está en cambios.md; los comandos están en PRUEBAS_JAVA.md.
+
+
+Fase 10 verificada: 99 pruebas aisladas y 22 escenarios integrales aprobados; colección Postman comprobada con 111 aserciones. Los contratos públicos incluyen 38 endpoints. La secuencia de diez fases queda completada; cualquier ampliación posterior requiere definir su alcance y mantener la documentación.

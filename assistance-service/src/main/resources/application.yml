@@ -13,3 +13,7 @@ springdoc:
 logging:
   level:
     org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+
+auxiruta:
+  automation:
+    enabled: ${AUXIRUTA_AUTOMATION_ENABLED:true}

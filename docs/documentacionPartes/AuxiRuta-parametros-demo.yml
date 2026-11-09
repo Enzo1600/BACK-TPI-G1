@@ -1,6 +1,6 @@
-# Overrides de referencia; implementación pendiente.
+# Overrides de referencia implementados por RulesConfiguration desde fase 9.
 # Complementa AuxiRuta-parametros-MVP.yml; no reemplaza su configuración completa.
-# Aplicar coherentemente en Assistance y Fleet.
+# Assistance guarda el snapshot; Fleet recibe los tiempos de cada reserva en su contrato.
 spring:
   config:
     activate:

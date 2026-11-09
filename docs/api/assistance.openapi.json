@@ -1,0 +1,2250 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "AuxiRuta Assistance API",
+    "description" : "Vehículos y solicitudes. Bearer JWT. Coordenadas WGS84 hasta seis decimales. Fechas UTC. page>=0, size 1..100. Creación, cancelación, respuestas a propuestas y etapas exigen Idempotency-Key de hasta 100 caracteres. Evaluación real con OpenRouteService; recuperación automática de operaciones remotas. Una respuesta exitosa puede conservar resourceReleasePending hasta confirmar liberación. Los errores usan application/problem+json.",
+    "version" : "1.0.0"
+  },
+  "servers" : [ {
+    "url" : "/"
+  } ],
+  "paths" : {
+    "/api/v1/vehicles" : {
+      "get" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "DRIVER: listar exclusivamente vehículos propios",
+        "operationId" : "vehicles",
+        "parameters" : [ {
+          "name" : "page",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "name" : "size",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        }, {
+          "name" : "registrationStatus",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "ACTIVE", "INACTIVE" ]
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada inválida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewVehicleView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Autenticación requerida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewVehicleView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewVehicleView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewVehicleView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewVehicleView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "DRIVER: registrar vehículo propio ACTIVE",
+        "operationId" : "createVehicle",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateVehicle"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "400" : {
+            "description" : "Entrada inválida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Autenticación requerida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "201" : {
+            "description" : "Vehículo creado con Location",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assistance-requests" : {
+      "get" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "DRIVER: solicitudes propias; ADMIN: globales; OPERATOR: solicitudes con propuestas o asignaciones propias",
+        "operationId" : "requests",
+        "parameters" : [ {
+          "name" : "page",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "name" : "size",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        }, {
+          "name" : "status",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "REQUESTED", "PENDING_EVALUATION", "AWAITING_ACCEPTANCE", "ASSIGNED", "SEARCHING_ALTERNATIVE", "DISPATCHED", "ARRIVED", "VEHICLE_LOADED", "IN_TRANSIT", "COMPLETED", "REJECTED", "UNFULFILLED", "CANCELLED" ]
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada inválida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewRequestView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Autenticación requerida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewRequestView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewRequestView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewRequestView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewRequestView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "DRIVER: crear y evaluar solicitud con snapshot; repetir Idempotency-Key y cuerpo recupera la solicitud",
+        "operationId" : "create",
+        "parameters" : [ {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Solicitud creada con Location",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Solicitud recuperada por Idempotency-Key",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Entrada inválida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Autenticación requerida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assistance-requests/{id}/transport-start" : {
+      "post" : {
+        "tags" : [ "execution-controller" ],
+        "summary" : "OPERATOR asignado: iniciar traslado después de cargar el vehículo",
+        "operationId" : "start",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada invalida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "JWT ausente o invalido",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, plazo o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "Dependencia temporalmente no disponible; consultar estado antes de reintentar",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assistance-requests/{id}/loading" : {
+      "post" : {
+        "tags" : [ "execution-controller" ],
+        "summary" : "OPERATOR asignado: declarar vehículo cargado después de la llegada",
+        "operationId" : "loading",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada invalida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "JWT ausente o invalido",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, plazo o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "Dependencia temporalmente no disponible; consultar estado antes de reintentar",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assistance-requests/{id}/dispatch" : {
+      "post" : {
+        "tags" : [ "execution-controller" ],
+        "summary" : "OPERATOR asignado: revalidar compromiso y rutas y declarar salida",
+        "operationId" : "dispatch",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada invalida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "JWT ausente o invalido",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, plazo o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "Dependencia temporalmente no disponible; consultar estado antes de reintentar",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assistance-requests/{id}/completion" : {
+      "post" : {
+        "tags" : [ "execution-controller" ],
+        "summary" : "OPERATOR asignado: registrar entrega con nota y liberar recursos",
+        "operationId" : "complete",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Completion"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "400" : {
+            "description" : "Entrada invalida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "JWT ausente o invalido",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, plazo o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "Dependencia temporalmente no disponible; consultar estado antes de reintentar",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assistance-requests/{id}/cancellations" : {
+      "post" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "DRIVER propietario: cancelar antes de primera aceptación; Idempotency-Key identifica el evento durable",
+        "operationId" : "cancel",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Cancellation"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "400" : {
+            "description" : "Entrada inválida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Autenticación requerida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assistance-requests/{id}/arrival" : {
+      "post" : {
+        "tags" : [ "execution-controller" ],
+        "summary" : "OPERATOR asignado: registrar llegada al origen después del despacho",
+        "operationId" : "arrival",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada invalida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "JWT ausente o invalido",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, plazo o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "Dependencia temporalmente no disponible; consultar estado antes de reintentar",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assignments/{id}/rejection" : {
+      "post" : {
+        "tags" : [ "assignment-controller" ],
+        "summary" : "OPERATOR destinatario: rechazar con motivo y liberar antes de otra propuesta",
+        "operationId" : "reject",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Rejection"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "400" : {
+            "description" : "Entrada invalida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "JWT ausente o invalido",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, plazo o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "Dependencia temporalmente no disponible; consultar estado antes de reintentar",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assignments/{id}/acceptance" : {
+      "post" : {
+        "tags" : [ "assignment-controller" ],
+        "summary" : "OPERATOR destinatario: confirmar una propuesta vigente con Idempotency-Key",
+        "operationId" : "accept",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada invalida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "JWT ausente o invalido",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, plazo o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "Dependencia temporalmente no disponible; consultar estado antes de reintentar",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/vehicles/{id}" : {
+      "get" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "DRIVER: consultar vehículo propio; ajeno e inexistente devuelven 404",
+        "operationId" : "vehicle",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada inválida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Autenticación requerida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      },
+      "patch" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "DRIVER: editar vehículo propio sin solicitud activa",
+        "operationId" : "edit",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EditVehicle"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "400" : {
+            "description" : "Entrada inválida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Autenticación requerida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/vehicles/{id}/registration-status" : {
+      "patch" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "DRIVER: activar/inactivar vehículo sin solicitud activa",
+        "operationId" : "registration",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegistrationChange"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "400" : {
+            "description" : "Entrada inválida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Autenticación requerida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VehicleView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/operator/assignments" : {
+      "get" : {
+        "tags" : [ "assignment-controller" ],
+        "summary" : "OPERATOR: consultar propuestas y servicios propios",
+        "operationId" : "own",
+        "parameters" : [ {
+          "name" : "page",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "name" : "size",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada invalida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "JWT ausente o invalido",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, plazo o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewView"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "Dependencia temporalmente no disponible; consultar estado antes de reintentar",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/configuration/assistance" : {
+      "get" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "ADMIN: consultar reglas efectivas sin secretos",
+        "operationId" : "configuration",
+        "responses" : {
+          "400" : {
+            "description" : "Entrada inválida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Autenticación requerida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assistance-requests/{id}" : {
+      "get" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "Consultar solicitud autorizada; fuera del ámbito devuelve 404",
+        "operationId" : "request",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada inválida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Autenticación requerida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RequestView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assistance-requests/{id}/history" : {
+      "get" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "Consultar historial paginado dentro del mismo ámbito de la solicitud",
+        "operationId" : "history",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "page",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "name" : "size",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada inválida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewHistoryView"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Autenticación requerida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewHistoryView"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewHistoryView"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewHistoryView"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageViewHistoryView"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    },
+    "/api/v1/assignments/{id}" : {
+      "get" : {
+        "tags" : [ "assignment-controller" ],
+        "summary" : "Consultar asignación propia; ADMIN puede consultar globalmente",
+        "operationId" : "get",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada invalida",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "JWT ausente o invalido",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Rol insuficiente",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Conflicto de estado, plazo o idempotencia",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "Dependencia temporalmente no disponible; consultar estado antes de reintentar",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/View"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "CreateVehicle" : {
+        "type" : "object",
+        "properties" : {
+          "licensePlate" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "brand" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "model" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "vehicleType" : {
+            "type" : "string",
+            "enum" : [ "CAR", "SUV", "PICKUP" ]
+          },
+          "declaredWeightKg" : {
+            "type" : "number",
+            "maximum" : 3000,
+            "minimum" : 500
+          }
+        },
+        "required" : [ "declaredWeightKg", "licensePlate", "vehicleType" ]
+      },
+      "VehicleView" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "licensePlate" : {
+            "type" : "string"
+          },
+          "brand" : {
+            "type" : "string"
+          },
+          "model" : {
+            "type" : "string"
+          },
+          "vehicleType" : {
+            "type" : "string",
+            "enum" : [ "CAR", "SUV", "PICKUP" ]
+          },
+          "declaredWeightKg" : {
+            "type" : "number"
+          },
+          "registrationStatus" : {
+            "type" : "string",
+            "enum" : [ "ACTIVE", "INACTIVE" ]
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "CreateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "vehicleId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "originLatitude" : {
+            "type" : "number",
+            "maximum" : 90,
+            "minimum" : -90
+          },
+          "originLongitude" : {
+            "type" : "number",
+            "maximum" : 180,
+            "minimum" : -180
+          },
+          "destinationLatitude" : {
+            "type" : "number",
+            "maximum" : 90,
+            "minimum" : -90
+          },
+          "destinationLongitude" : {
+            "type" : "number",
+            "maximum" : 180,
+            "minimum" : -180
+          },
+          "mobilityCondition" : {
+            "type" : "string",
+            "enum" : [ "ROLLABLE", "NON_ROLLABLE" ]
+          },
+          "description" : {
+            "type" : "string",
+            "maxLength" : 1000,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "description", "destinationLatitude", "destinationLongitude", "mobilityCondition", "originLatitude", "originLongitude", "vehicleId" ]
+      },
+      "CandidateView" : {
+        "type" : "object",
+        "properties" : {
+          "towTruckId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "eligible" : {
+            "type" : "boolean"
+          },
+          "reasonCode" : {
+            "type" : "string"
+          },
+          "approachDistanceM" : {
+            "type" : "number"
+          },
+          "adjustedApproachSeconds" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "estimatedServiceEndAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "rankingPosition" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "EvaluationView" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "result" : {
+            "type" : "string"
+          },
+          "reasonCode" : {
+            "type" : "string"
+          },
+          "evaluatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "transportDistanceM" : {
+            "type" : "number"
+          },
+          "adjustedTransportSeconds" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "candidates" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CandidateView"
+            }
+          }
+        }
+      },
+      "RequestView" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "vehicleId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "REQUESTED", "PENDING_EVALUATION", "AWAITING_ACCEPTANCE", "ASSIGNED", "SEARCHING_ALTERNATIVE", "DISPATCHED", "ARRIVED", "VEHICLE_LOADED", "IN_TRANSIT", "COMPLETED", "REJECTED", "UNFULFILLED", "CANCELLED" ]
+          },
+          "firstAssignedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "closureReasonCode" : {
+            "type" : "string"
+          },
+          "originLatitude" : {
+            "type" : "number"
+          },
+          "originLongitude" : {
+            "type" : "number"
+          },
+          "destinationLatitude" : {
+            "type" : "number"
+          },
+          "destinationLongitude" : {
+            "type" : "number"
+          },
+          "declaredVehicleType" : {
+            "type" : "string",
+            "enum" : [ "CAR", "SUV", "PICKUP" ]
+          },
+          "declaredWeightKg" : {
+            "type" : "number"
+          },
+          "mobilityCondition" : {
+            "type" : "string",
+            "enum" : [ "ROLLABLE", "NON_ROLLABLE" ]
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "searchAttemptNumber" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "searchDeadline" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "configurationRevision" : {
+            "type" : "string"
+          },
+          "configurationSnapshot" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "closedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "resourceReleasePending" : {
+            "type" : "boolean"
+          },
+          "latestEvaluation" : {
+            "$ref" : "#/components/schemas/EvaluationView"
+          }
+        }
+      },
+      "HistoryView" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "requestId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "previousStatus" : {
+            "type" : "string",
+            "enum" : [ "REQUESTED", "PENDING_EVALUATION", "AWAITING_ACCEPTANCE", "ASSIGNED", "SEARCHING_ALTERNATIVE", "DISPATCHED", "ARRIVED", "VEHICLE_LOADED", "IN_TRANSIT", "COMPLETED", "REJECTED", "UNFULFILLED", "CANCELLED" ]
+          },
+          "newStatus" : {
+            "type" : "string",
+            "enum" : [ "REQUESTED", "PENDING_EVALUATION", "AWAITING_ACCEPTANCE", "ASSIGNED", "SEARCHING_ALTERNATIVE", "DISPATCHED", "ARRIVED", "VEHICLE_LOADED", "IN_TRANSIT", "COMPLETED", "REJECTED", "UNFULFILLED", "CANCELLED" ]
+          },
+          "actorType" : {
+            "type" : "string"
+          },
+          "actorSubject" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "details" : {
+            "type" : "string"
+          },
+          "operationKey" : {
+            "type" : "string"
+          },
+          "occurredAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "Completion" : {
+        "type" : "object",
+        "properties" : {
+          "note" : {
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 10
+          }
+        },
+        "required" : [ "note" ]
+      },
+      "Cancellation" : {
+        "type" : "object",
+        "properties" : {
+          "reason" : {
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "reason" ]
+      },
+      "Rejection" : {
+        "type" : "object",
+        "properties" : {
+          "reason" : {
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 10
+          }
+        },
+        "required" : [ "reason" ]
+      },
+      "View" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "requestId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "towTruckId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "operatorId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "operatorSubject" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "acceptedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "reason" : {
+            "type" : "string"
+          }
+        }
+      },
+      "EditVehicle" : {
+        "type" : "object",
+        "properties" : {
+          "licensePlate" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "brand" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "model" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "vehicleType" : {
+            "type" : "string",
+            "enum" : [ "CAR", "SUV", "PICKUP" ]
+          },
+          "declaredWeightKg" : {
+            "type" : "number",
+            "maximum" : 3000,
+            "minimum" : 500
+          }
+        }
+      },
+      "RegistrationChange" : {
+        "type" : "object",
+        "properties" : {
+          "status" : {
+            "type" : "string",
+            "enum" : [ "ACTIVE", "INACTIVE" ]
+          }
+        },
+        "required" : [ "status" ]
+      },
+      "PageViewVehicleView" : {
+        "type" : "object",
+        "properties" : {
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VehicleView"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "PageViewView" : {
+        "type" : "object",
+        "properties" : {
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/View"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "PageViewRequestView" : {
+        "type" : "object",
+        "properties" : {
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/RequestView"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "PageViewHistoryView" : {
+        "type" : "object",
+        "properties" : {
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/HistoryView"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "type" : "http",
+        "scheme" : "bearer",
+        "bearerFormat" : "JWT"
+      }
+    }
+  }
+}

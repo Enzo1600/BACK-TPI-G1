@@ -26,6 +26,18 @@ public class FleetClient {
   if(response==null || response.path("access_token").asText().isBlank())throw new IllegalStateException("FLEET_AUTH_UNAVAILABLE");
   token=response.path("access_token").asText();expires=clock.instant().plusSeconds(response.path("expires_in").asLong(0));return token;
  }
+ public record Eligibility(UUID assignmentAttemptId,UUID requestId,UUID towTruckId,UUID operatorId,String operatorSubject,boolean eligible,String reason,BigDecimal latitude,BigDecimal longitude,Instant locationUpdatedAt,Instant qualificationValidUntil,Instant checkedAt) {}
+ public Eligibility eligibility(UUID id){return http.get().uri(base+"/internal/reservations/"+id+"/eligibility").header(HttpHeaders.AUTHORIZATION,"Bearer "+token()).retrieve().body(Eligibility.class);}
+ public java.util.List<JsonNode> statuses(java.util.List<UUID> ids){return http.post().uri(base+"/internal/reservations/status-queries").header(HttpHeaders.AUTHORIZATION,"Bearer "+token()).contentType(MediaType.APPLICATION_JSON).body(java.util.Map.of("assignmentAttemptIds",ids)).retrieve().body(new org.springframework.core.ParameterizedTypeReference<java.util.List<JsonNode>>(){});}
+ public JsonNode reservation(UUID id,String kind,String payload) {
+  if(kind.equals("CONFIRM")){JsonNode existing=http.get().uri(base+"/internal/reservations/"+id).header(HttpHeaders.AUTHORIZATION,"Bearer "+token()).retrieve().body(JsonNode.class);if(existing!=null && id.toString().equals(existing.path("assignmentAttemptId").asText()) && !"HELD".equals(existing.path("status").asText()))return existing;}
+  var request=kind.equals("RESERVE")?http.put().uri(base+"/internal/reservations/"+id):http.post().uri(base+"/internal/reservations/"+id+(kind.equals("CONFIRM")?"/confirmation":"/release"));
+  request.header(HttpHeaders.AUTHORIZATION,"Bearer "+token());
+  if(kind.equals("RESERVE"))request.contentType(MediaType.APPLICATION_JSON).body(payload);
+  JsonNode result=request.retrieve().body(JsonNode.class);
+  if(result==null || !id.toString().equals(result.path("assignmentAttemptId").asText()))throw new IllegalStateException("FLEET_INVALID_RESERVATION_RESPONSE");
+  return result;
+ }
  public List<Candidate> candidates(BigDecimal latitude,BigDecimal longitude,String type,BigDecimal weight,boolean nonRollable) {
   try {
    var uri=org.springframework.web.util.UriComponentsBuilder.fromUriString(base+"/internal/fleet/candidates").queryParam("latitude",latitude).queryParam("longitude",longitude).queryParam("vehicleType",type).queryParam("weightKg",weight).queryParam("nonRollable",nonRollable).build().toUri();

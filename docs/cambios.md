@@ -1,6 +1,6 @@
 # Cambios y guía de aprendizaje
 
-Este documento conserva el historial de construcción por fases. Desde fase 5, las instrucciones vigentes de pruebas están en [PRUEBAS_JAVA.md](PRUEBAS_JAVA.md); las menciones a Python de fases anteriores son históricas y sus scripts fueron retirados. Cada fase revisa la anterior y los componentes afectados; registra correcciones, código incorporado, verificaciones y pendientes.
+Este documento conserva el historial de construcción por fases. Desde fase 5, las instrucciones vigentes de pruebas están en [PRUEBAS_JAVA.md](PRUEBAS_JAVA.md). Cada fase revisa la anterior y los componentes afectados; registra correcciones, código incorporado, verificaciones y pendientes.
 
 ## Fase 1 — Estructura y compilación — 6 de noviembre de 2026
 
@@ -64,7 +64,6 @@ Se repitieron clean install de commons y clean verify de las tres aplicaciones: 
 - **infra/keycloak/auxiruta-realm.json:** configura el realm, roles, clientes y usuarios de demostración. Los placeholders de secretos se resuelven desde el entorno del contenedor. El cliente público utiliza Authorization Code con PKCE S256; el confidencial utiliza client_credentials. Los mappers agregan las audiencias y los scopeMappings limitan los roles que cada cliente puede recibir.
 - **application-docker.yml:** Spring activa este archivo con el perfil docker. Los servicios configuran DataSource y ddl-auto=validate, por lo que Hibernate verificará el esquema sin crearlo ni destruirlo. open-in-view=false mantiene la persistencia fuera de la serialización web. Los tres ejecutables configuran emisor público y claves JWKS por URL interna. Assistance declara además fleet-client para obtener credenciales técnicas; su uso por RestClient se incorporará con las integraciones.
 - **.env.example y .env:** el primero documenta variables con placeholders. El segundo contiene secretos locales generados y está excluido de Git. No se debe copiar ni publicar su contenido. .dockerignore evita enviar secretos, Git y compilaciones previas al contexto del build.
-- **infra/tests/verify_identity.py:** prueba de integración con biblioteca estándar Python, independiente del backend Java. Verifica emisión real de tokens técnicos y humanos, claims y rechazo de credenciales incorrectas. Automatiza el formulario de login local, genera un code_verifier aleatorio y su desafío SHA-256, y canjea el código con PKCE. El token no se imprime ni se guarda. La política de cookies admite HTTP exclusivamente para esta prueba de localhost, que reproduce el comportamiento de navegador en desarrollo; no se utiliza como cliente de producción.
 
 Los healthchecks de PostgreSQL y Keycloak permiten esperar su disponibilidad antes de iniciar dependencias. No se agregó Actuator. Keycloak administra sus propias migraciones mediante herramientas internas; esto no introduce Liquibase como dependencia de nuestros servicios.
 
@@ -88,7 +87,6 @@ La fase 2 acredita infraestructura e identidad. La autorización propia por role
 La lectura de claims en el script verifica la configuración de emisión; la validación criptográfica y la política de acceso de las APIs tendrán sus comprobaciones específicas en fase 3.
 - Reinicio de PostgreSQL y Keycloak: realm conservado con el mismo ID; prueba de identidad repetida satisfactoriamente después del reinicio. .env verificado como excluido de Git.
 
-
 ## Fase 3 — Gateway, seguridad y componentes transversales
 
 Fecha: 7 de noviembre de 2026. Se conserva la línea base funcional AR-MVP-5. Esta fase implementa infraestructura de aplicación, sin adelantar CRUD ni decisiones del negocio.
@@ -97,7 +95,7 @@ Fecha: 7 de noviembre de 2026. Se conserva la línea base funcional AR-MVP-5. Es
 
 Se inició Docker Desktop y se recuperaron los cinco contenedores conservando el volumen existente. Se repitió la emisión de tokens técnicos, los tres logins humanos Authorization Code + PKCE y el rechazo de un secreto técnico incorrecto.
 
-La validación real de JWT detectó una omisión de la fase 2: los tokens humanos tenían audiencia y roles correctos, pero no incluían `sub`. Se agregó el scope predeterminado `basic` a ambos clientes en `infra/keycloak/auxiruta-realm.json`. El script idempotente `infra/keycloak/ensure_basic_scope.py` aplica la misma corrección al realm existente mediante la API administrativa local, sin eliminar usuarios, credenciales o bases. `verify_identity.py` comprueba ahora también que `sub` exista. No se debilitó el validador para aceptar usuarios sin identificador.
+La validación real de JWT detectó una omisión de la fase 2: los tokens humanos tenían audiencia y roles correctos, pero no incluían `sub`. Se agregó el scope predeterminado `basic` a ambos clientes en `infra/keycloak/auxiruta-realm.json`. La prueba idempotente `KeycloakScopeSetupTest` aplica la misma corrección al realm existente mediante la API administrativa local, sin eliminar usuarios, credenciales o bases. `BackendIntegrationTest` comprueba ahora también que `sub` exista. No se debilitó el validador para aceptar usuarios sin identificador.
 
 ### Implementación y explicación del código
 
@@ -123,15 +121,14 @@ Las pruebas de commons cubren audiencia, emisor, vencimiento, rol, cliente autor
 ./assistance-service/mvnw.cmd -f assistance-service/pom.xml verify
 ./api-gateway/mvnw.cmd -f api-gateway/pom.xml verify
 docker compose up -d --build
-python infra/tests/verify_security.py
+.\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.integration=true" "-Dtest=BackendIntegrationTest"
 ```
 
-`verify_security.py` reutiliza el login de `verify_identity.py`: recibe tokens reales, consulta OpenAPI por ambos destinos y comprueba rechazos por falta de token, rol, audiencia y firma alterada. Las llamadas directas dentro de Docker comprueban la protección propia de los microservicios. Los tokens permanecen en memoria y se pasan a curl por stdin; no aparecen en argumentos ni archivos.
+`BackendIntegrationTest` reutiliza el login de `BackendIntegrationTest`: recibe tokens reales, consulta OpenAPI por ambos destinos y comprueba rechazos por falta de token, rol, audiencia y firma alterada. Las llamadas directas dentro de Docker comprueban la protección propia de los microservicios. Los tokens permanecen en memoria y se pasan a curl por stdin; no aparecen en argumentos ni archivos.
 
 ### Límites de la fase
 
 Las rutas están protegidas y enrutadas, pero sus controladores de negocio aún no existen: una ruta autorizada puede devolver 404. La prueba positiva de extremo a extremo utiliza documentos OpenAPI reales; no se agregaron endpoints ficticios de producción. Los filtros de listas por propietario y los chequeos contra la base se implementarán junto con vehículos, operadores y solicitudes. El contrato OpenAPI funcional se ampliará con esos controladores. La interfaz Swagger UI con login, las llamadas de negocio Assistance → Fleet, los logs de transiciones y la integración ORS pertenecen a fases posteriores. No se modificaron diagramas ni reglas funcionales.
-
 
 ### Resultados de verificación
 
@@ -140,8 +137,7 @@ Las rutas están protegidas y enrutadas, pero sus controladores de negocio aún 
 - 22 comprobaciones HTTP satisfactorias con tokens emitidos por Keycloak: documentos OpenAPI 200 para los tres roles; 401 sin token, firma alterada o audiencia incorrecta; 403 por rol no autorizado; 404 para rutas autorizadas todavía sin controlador.
 - En la red privada, Fleet rechaza tokens humanos para endpoints internos y admite el cliente técnico hasta la resolución del recurso; Assistance rechaza esa audiencia técnica. Ambos aplican permisos aunque la petición no pase por Gateway.
 - La emisión de identidad exige ahora `sub`; los tres logins PKCE y el rechazo de un secreto técnico inválido se repitieron después de corregir el realm.
-- `.env`, `target/` y cachés Python excluidos de Git. Diagramas conservados. No se realizó commit ni push.
-
+- `.env`, `target/` excluidos de Git. Diagramas conservados. No se realizó commit ni push.
 
 ## Fase 4 — Administración de flota — 7 de noviembre de 2026
 
@@ -181,11 +177,10 @@ Los métodos flush fuerzan la detección de restricciones antes de construir la 
 
 ```powershell
 docker compose up -d --build
-python infra/tests/verify_security.py
-python infra/tests/verify_fleet.py
+.\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.integration=true" "-Dtest=BackendIntegrationTest"
 ```
 
-verify_fleet.py realiza login real con PKCE y usa Gateway, Fleet y PostgreSQL. Mantiene datos identificados con patentes TEST; no borra filas de auditoría. Al finalizar deja las grúas creadas INACTIVE y sin vínculo y el operador demo UNAVAILABLE. Debe ejecutarse en el entorno local de pruebas: utiliza el perfil operator.demo y rechaza desvincular una grúa cuya patente no tenga el prefijo de prueba. Cada ejecución agrega grúas de prueba nuevas. No imprime ni guarda tokens.
+BackendIntegrationTest realiza login real con PKCE y usa Gateway, Fleet y PostgreSQL. Mantiene datos identificados con patentes TEST; no borra filas de auditoría. Al finalizar deja las grúas creadas INACTIVE y sin vínculo y el operador demo UNAVAILABLE. Debe ejecutarse en el entorno local de pruebas: utiliza el perfil operator.demo y rechaza desvincular una grúa cuya patente no tenga el prefijo de prueba. Cada ejecución agrega grúas de prueba nuevas. No imprime ni guarda tokens.
 
 Las pruebas Java de FleetService usan un Clock fijo para comprobar fecha de ubicación, antigüedad de disponibilidad, rechazo de intervalos inválidos, perfil inexistente y repetición durable de estados. Las pruebas HTTP cubren ambos actores, endpoints administrativos/personales, normalización, duplicados, límites, propiedades desconocidas, idempotencia y dos vinculaciones simultáneas sobre PostgreSQL real.
 
@@ -193,9 +188,7 @@ Las pruebas Java de FleetService usan un Clock fijo para comprobar fecha de ubic
 
 La administración queda operativa. La existencia de una identidad OPERATOR en Keycloak es una precondición administrativa; esta fase no agrega credenciales administrativas de Keycloak a Fleet. Registrar disponibilidad o activar una grúa no afirma que sea un candidato elegible: habilitación vigente, ubicación reciente, cobertura y compatibilidad se evaluarán en fase 6. Las restricciones por compromisos HELD/CONFIRMED se integrarán con las reservas en fase 7, usando un protocolo de bloqueo coherente para impedir cambios administrativos sobre recursos comprometidos. No hay un indicador editable o ficticio de ocupación en esta fase.
 
-
 Se deshabilitó el logger SQL SqlExceptionHelper: los mensajes de restricciones PostgreSQL pueden incluir valores personales de la fila. Los conflictos esperados se representan mediante 409 sin volcar esos valores; los fallos inesperados conservan el registro controlado de tipo de excepción.
-
 
 ### Resultados observados
 
@@ -209,14 +202,13 @@ Se deshabilitó el logger SQL SqlExceptionHelper: los mensajes de restricciones 
 
 Durante las pruebas se corrigió la lectura de un operador representado por proxy JPA al repetir su vínculo. También se alineó la precisión temporal de las respuestas con PostgreSQL para asegurar igualdad en reintentos. Son correcciones de esta fase; no modifican las reglas funcionales acordadas.
 
-
 ## Fase 5 — Vehículos, solicitudes y verificación Java — 7 de noviembre de 2026
 
 ### Revisión de fase 4 y correcciones
 
 Se inició la infraestructura existente sin reemplazar volúmenes. Se migraron primero los casos de identidad, permisos y catálogo de Fleet a Java. La ejecución detectó que el DTO de ubicación de fase 4 admitía siete decimales, frente a los seis de AR-MVP-5; se corrigió la validación y se agregó un caso HTTP que exige 400 para siete decimales. La configuración y el modelo de datos existentes de Fleet se conservan.
 
-Por decisión del equipo, todas las pruebas automatizadas mantenidas se escriben ahora en Java. Se eliminaron infra/tests/verify_identity.py, verify_security.py y verify_fleet.py después de comprobar sus escenarios equivalentes en JUnit. También se reemplazó la reparación ensure_basic_scope.py por KeycloakScopeSetupTest, optativo e idempotente. No se necesita Python para ejecutar, probar o preparar el backend. La colección Postman prevista para la fase 10 se mantiene.
+Las pruebas automatizadas se implementan en Java con JUnit. KeycloakScopeSetupTest permite reparar la configuración local de identidad de forma optativa e idempotente. La colección Postman prevista para la fase 10 se mantiene.
 
 ### Funcionalidades incorporadas
 
@@ -263,7 +255,6 @@ RequestRulesTest verifica fechas con Clock fijo, snapshot independiente del veh�
 
 La fase termina con solicitudes persistidas en REQUESTED; no se inventan evaluaciones ni asignaciones. La evaluación y ORS corresponden a fase 6. En fase 7 se incorporarán las asignaciones visibles al operador, las reservas y los controles adicionales por confirmación o liberación remota incierta. En fase 9 se automatizarán búsquedas y vencimientos; por ahora el deadline se conserva pero no hay tarea que cierre solicitudes por tiempo. Los diagramas y la línea base funcional AR-MVP-5 no se modificaron.
 
-
 ### Resultados de verificación de fase 5
 
 - Construcción de las tres imágenes satisfactoria. Pruebas aisladas: commons 12, Fleet 10 y Assistance 12; 34 en total, sin fallos.
@@ -274,7 +265,7 @@ La fase termina con solicitudes persistidas en REQUESTED; no se inventan evaluac
 - Cancelaciones e historial idempotentes, snapshots inmutables y conservación de solicitud/historial después de reiniciar Assistance verificados.
 - KeycloakScopeSetupTest también se ejecutó satisfactoriamente, confirmando la reparación Java idempotente de basic.
 - Los casos de integración/reparación quedan omitidos por defecto en builds normales y Docker builds; su ejecución real exige las propiedades explícitas documentadas.
-- git diff --check sin errores; no quedan archivos fuente Python en el repositorio. No se modificaron diagramas ni se realizó commit o push. Los contenedores quedan iniciados.
+- git diff --check sin errores. No se modificaron diagramas ni se realizó commit o push. Los contenedores quedan iniciados.
 
 ## Fase 6 — Evaluación, rutas y colaboración — 8 de noviembre de 2026
 
@@ -282,7 +273,7 @@ La fase termina con solicitudes persistidas en REQUESTED; no se inventan evaluac
 
 Antes de modificar el backend se ejecutaron satisfactoriamente los cuatro casos Java de integración de fase 5, incluyendo PostgreSQL y reinicio. Se conservaron propiedad, idempotencia, exclusividad por vehículo y cancelación. Se actualizaron sus expectativas porque ahora cada solicitud nueva incorpora una evaluación y otro evento de historial. Repetir una creación idempotente no repite la llamada externa.
 
-Durante la integración de fase 6, la validación del esquema detectó que Hibernate interpretaba transportDistanceM y approachDistanceM con nombres distintos de las columnas SQL. Se agregaron nombres explícitos mediante @Column; el esquema y los datos existentes se conservaron. La clave proporcionada se incorporó únicamente al .env local ignorado por Git. No se incorporaron pruebas Python, ni se modificaron los diagramas.
+Durante la integración de fase 6, la validación del esquema detectó que Hibernate interpretaba transportDistanceM y approachDistanceM con nombres distintos de las columnas SQL. Se agregaron nombres explícitos mediante @Column; el esquema y los datos existentes se conservaron. La clave proporcionada se incorporó únicamente al .env local ignorado por Git. Los diagramas se conservaron.
 
 ### Proceso incorporado
 
@@ -333,3 +324,248 @@ Con .env configurado y Docker Desktop iniciado, ejecutar docker compose up -d --
 - Imágenes reconstruidas y aplicaciones iniciadas con validación SQL/JPA satisfactoria. .env está excluido tanto de Git como del contexto Docker; .env.example conserva la clave vacía.
 - La documentación de ejecución, pruebas y avance se actualizó. Las cuotas locales son conservadoras respecto de la referencia pública; no se afirma que se haya inspeccionado el plan contratado de la cuenta.
 - No se realizó commit ni push. Reservas/aceptación continúan en fase 7 y automatización en fase 9.
+
+## Fase 7 — Reservas, propuestas y aceptación — 8 de noviembre de 2026
+
+### Revisión de la fase anterior
+
+Antes de modificar el sistema se ejecutó BackendIntegrationTest con integración real de rutas: cinco casos y 162 comprobaciones HTTP aprobados. Se conservaron los límites AR-MVP-5 y los diagramas. La regresión ahora espera AWAITING_ACCEPTANCE cuando hay candidato y reserva válidos, y comprueba liberación al cancelar. Los listados del operador pueden contener solicitudes históricas propias; la prueba de privacidad verifica que no aparezca una solicitud ajena, en lugar de exigir un listado globalmente vacío.
+
+La documentación conserva instrucciones de ejecución exclusivamente en Java/JUnit y elimina menciones y comandos de herramientas de pruebas anteriores, según la decisión del equipo.
+
+### Proceso implementado
+
+Después de la evaluación, AssignmentCoordinator solicita a AssignmentStore un intento durable sobre el primer candidato elegible del ranking. La elección revisa antigüedad de rutas/ubicación, deadline, cupo y ausencia de otros compromisos locales. Una reserva denegada de forma durable permite avanzar al siguiente candidato; una respuesta incierta detiene esa secuencia. Solo las propuestas efectivamente emitidas consumen el cupo de cinco propuestas del intento de búsqueda.
+
+Fleet revalida operación, disponibilidad, vínculo, capacidad, tipo, movilidad, cobertura, ubicación y habilitación. Crea HELD con vencimiento mínimo entre 60 segundos y searchDeadline. Un recurso no elegible o comprometido produce un intento terminal EXPIRED conservado en base, evitando que una petición tardía cree posteriormente esa misma reserva. Un mismo identificador con contenido distinto produce 409; una repetición idéntica devuelve su estado vigente y nunca revive un intento terminal.
+
+Al recibir HELD, Assistance publica PROPOSED y pasa la solicitud a AWAITING_ACCEPTANCE. OPERATOR consulta exclusivamente sus propuestas/servicios, sus solicitudes asociadas y el historial. ADMIN puede consultar asignaciones por ID, pero no responder en nombre del operador. DRIVER no tiene acceso a los endpoints de asignación.
+
+Aceptar registra primero una acción CONFIRM y la clave/huella de la respuesta. Fleet confirma solo antes del vencimiento y después de revalidar elegibilidad. Assistance persiste ACCEPTED, ASSIGNED y firstAssignedAt a partir de confirmedAt remoto. Confirmaciones repetidas conservan ese instante incluso cuando ya venció la antigua retención. Una confirmación rechazada libera/cierra el intento y devuelve la solicitud a evaluación pendiente.
+
+Rechazar exige motivo de 10 a 500 caracteres. La respuesta queda REJECTED y se registra RELEASE. Hasta confirmar la liberación no se puede ofrecer otro recurso; después puede intentarse otro candidato del ranking vigente. Repetir la clave y contenido devuelve el resultado; cambiar respuesta, motivo o clave después de responder produce conflicto.
+
+### Concurrencia y fallos
+
+Fleet toma bloqueos en orden grúa, operador y reserva. Los índices únicos parciales sobre HELD/CONFIRMED refuerzan la exclusividad por ambos recursos. El estado de una reserva consultada antes de esperar bloqueos se refresca bajo bloqueo para no confirmar o liberar una versión obsoleta. Un compromiso confirmado no vence automáticamente.
+
+Las modificaciones administrativas de capacidad, tipos, vínculo, estado operativo, habilitación, disponibilidad y registro verifican recursos libres bajo los mismos bloqueos locales. El filtro de candidatos excluye reservas activas. Actualizar ubicación continúa permitido.
+
+En Assistance, aceptar y cancelar toman primero el vehículo y luego la solicitud. Si cancelar gana, no se crea una confirmación posterior y se compensa cualquier reserva en curso. Si existe CONFIRM pendiente o incierta, cancelar devuelve 409; debe resolverse el resultado remoto antes de decidir. Una solicitud cerrada con retención incierta conserva resourceReleasePending y bloquea nuevas solicitudes para su vehículo hasta confirmar la liberación.
+
+No se mantiene una transacción abierta durante HTTP. Cada intención se confirma localmente, luego se ejecuta la llamada, y finalmente otra transacción aplica el resultado. Los fallos dejan PENDING/RETRYING; se conserva el ID y contenido originales. Recuperar una reserva incierta repite el PUT original, no interpreta un 404 como prueba de que nunca existirá. Una creación que llega después del cierre se compensa mediante RELEASE del mismo intento.
+
+### Clases, tablas y aprendizaje del código
+
+**ResourceReservation, ReservationRepository y ReservationService (Fleet).** La entidad JPA almacena intento, recursos, estado, fechas, contenido canónico y versión. El servicio implementa creación/recuperación, consulta, confirmación y liberación. ReservationController expone únicamente las rutas técnicas ya protegidas por FLEET_SERVICE. El script aditivo 002-reservations.sql incorpora resource_reservations, FK locales e índices de exclusividad.
+
+**AssignmentStore (Assistance).** Mantiene propuestas y acciones durables en assignments y pending_actions, creadas por 003-assignments.sql. Usa JdbcTemplate para SQL explícito de estas operaciones y JPA para solicitud, evaluaciones e historial. Ambos participan en la misma transacción Spring y el mismo DataSource de assistance_db. Esta combinación permite observar las consultas y actualizaciones condicionales sin compartir entidades entre servicios. Los records View y Action son DTOs, no entidades ni tablas adicionales.
+
+**AssignmentCoordinator.** Coordina llamadas remotas fuera de la transacción. Una respuesta perdida mantiene la acción pendiente; un resultado conocido habilita la siguiente transacción o compensación. recover reutiliza acciones persistidas, sin generar identificadores nuevos. Los bucles acotados recorren candidatos distintos o continúan compensaciones; no repiten inmediatamente una llamada fallida.
+
+**AssignmentController.** Agrega listado paginado propio, detalle autorizado, aceptación y rechazo. Usa JWT para identidad, Idempotency-Key para respuesta y Bean Validation para el motivo. La documentación OpenAPI incluye estas operaciones. Los GET no ejecutan confirmaciones ni liberaciones.
+
+**RequestService/RequestController.** Integran cancelación y recuperación de liberación, amplían visibilidad del operador a solicitudes vinculadas y exponen resourceReleasePending. La exclusividad por vehículo contempla también solicitudes terminales con limpieza remota pendiente. Los logs de transición se emiten después del commit y contienen IDs/estados/motivos, sin tokens ni secretos.
+
+### Alcance restante
+
+Esta fase llega a ASSIGNED. Despacho, ejecución y finalización normal corresponden a fase 8. Las acciones inciertas quedan durables y pueden recuperarse al repetir la respuesta idempotente o continuar una cancelación; el procesamiento periódico tras reinicios, vencimiento automático de propuestas, búsquedas programadas y perfil demo se conectan en fase 9. No se afirma que esa automatización ya esté activa. Los endpoints siguen comprobando vencimientos con Clock aunque ninguna tarea programada haya corrido.
+
+La línea base AR-MVP-5 permanece sin cambios. Los contratos técnicos de revalidación de despacho y consultas agrupadas se incorporarán con sus consumidores de fases 8 y 9, respectivamente.
+
+### Ejecución y verificación
+
+La guía PRUEBAS_JAVA.md documenta las pruebas aisladas, la regresión y Phase7IntegrationTest. Para incorporar las tablas y aplicaciones ejecutar docker compose up -d --build; no se borran volúmenes. La suite específica se habilita con -Dauxiruta.phase7=true y usa datos locales de prueba.
+
+### Resultados finales de fase 7
+
+- Construcción y pruebas aisladas: commons 12, Fleet 22 y Assistance 39; 73 pruebas aprobadas sin fallos. Las imágenes finales se construyeron ejecutando sus verificaciones Maven.
+- Regresión BackendIntegrationTest: cinco casos aprobados, con 161 comprobaciones HTTP en la ejecución final, incluida evaluación real ORS. El total de consultas de espera puede variar durante el reinicio.
+- Phase7IntegrationTest: cinco casos aprobados sobre las imágenes finales, incluida concurrencia de reservas, carrera aceptación/cancelación, rechazo, aceptación durable y recuperación tras reinicio de una confirmación cuyo resultado no había sido aplicado localmente.
+- La cancelación con confirmación pendiente devuelve 409 con code=ACCEPTANCE_CONFIRMATION_PENDING. La recuperación conserva el confirmedAt original como firstAssignedAt.
+- La ventana mínima de propuesta se vuelve a comprobar al recibir la reserva: si ya quedan menos de 15 segundos, se libera sin publicar la propuesta. Al liberar un compromiso confirmado, el tiempo disponible del operador se reinicia; liberar una retención no aceptada no altera su antigüedad disponible.
+- Se verificó git diff --check, exclusión de .env y ausencia de referencias a las herramientas de pruebas retiradas en README, docs e infra. Los diagramas no se modificaron.
+- Las pruebas dejan el operador demo no disponible y sus recursos de prueba inactivos/desvinculados. Los contenedores quedan iniciados. No se realizó commit ni push.
+
+## Fase 8 — Ejecución y finalización — 8 de noviembre de 2026
+
+### Revisión de fase 7
+
+Antes de implementar se ejecutaron los cinco casos de Phase7IntegrationTest sin fallos: exclusividad, aceptación/cancelación concurrentes, rechazo, aceptación durable y recuperación de confirmación tras reinicio. Se preservaron los cambios locales existentes, las reglas AR-MVP-5 y los diagramas. La implementación reutiliza los bloqueos, historial, reserva confirmada y acciones RELEASE durables de fase 7.
+
+No fue necesario modificar las reglas de la fase anterior. Las pruebas y documentación permanecen en Java/JUnit.
+
+### Funcionalidades y endpoints
+
+El operador de la asignación vigente registra cinco POST sobre /api/v1/assistance-requests/{id}: dispatch, arrival, loading, transport-start y completion. Todos exigen JWT válido, rol OPERATOR, pertenencia a la solicitud mediante la asignación e Idempotency-Key. ADMIN y DRIVER no pueden ejecutar estas acciones. Un operador sin vínculo recibe 404; no se permite declarar acciones sobre servicios ajenos.
+
+La secuencia válida es ASSIGNED → DISPATCHED → ARRIVED → VEHICLE_LOADED → IN_TRANSIT → COMPLETED. Cada acción exige su predecesor y rechaza saltos, repeticiones con otra clave o alteraciones de contenido. Repetir la misma clave y huella recupera el evento original, incluso después de que el servicio avance. No vuelve a consumir API externa para un despacho ya registrado.
+
+Completion exige note de 10 a 500 caracteres después de quitar espacios extremos. Se guardan nota, fecha de entrega, cierre de asignación, cierre de solicitud y acción RELEASE en una única transacción. Después se invoca Fleet fuera de esa transacción. Una caída remota no revierte una entrega ya declarada: resourceReleasePending conserva la limpieza pendiente y bloquea otra solicitud del mismo vehículo. Repetir la entrega recupera la liberación sin duplicar historia.
+
+### Revalidación antes del despacho
+
+ReservationService.eligibility consulta el recurso de la reserva confirmada bajo bloqueos coherentes; no busca una grúa libre para reemplazarlo. Comprueba reserva, vínculo, operación, disponibilidad, compatibilidad, cobertura, ubicación y habilitación. Devuelve identidad de recursos, coordenadas, fechas y resultado mediante GET /internal/reservations/{id}/eligibility, accesible solo al cliente técnico de Assistance. No confirma ni libera reservas mediante GET.
+
+DispatchValidator usa el snapshot de reglas de la solicitud. Requiere ubicación de antigüedad máxima 120 segundos, rutas de hasta 300 segundos y los mismos límites de traslado/aproximación. Conserva el margen de partida de 300 segundos en la planificación de habilitación, con aceptación restante cero. La habilitación debe vencer estrictamente después del nuevo fin estimado; el margen no extiende el plazo de salida.
+
+La salida debe registrarse antes de acceptedAt + 300 segundos de la asignación vigente. Se valida antes de consultar dependencias y otra vez al guardar. La evidencia de rutas y ubicación también se vuelve a comprobar después de recuperar los bloqueos locales. Incluye coordenadas, fechas remotas, distancias, duraciones ajustadas, vencimiento de habilitación y fin estimado en details del historial. No se guarda el JSON completo del proveedor ni credenciales.
+
+Un incumplimiento confirmado produce 409 sin avanzar. Timeout, cuota, respuesta inválida o indisponibilidad producen 503 y no habilitan una salida a ciegas. Los tiempos estimados de carga/descarga no obligan a esperar: las acciones representan declaraciones del operador sobre tareas realizadas. Después de DISPATCHED no se reevalúa para cancelar o sustituir recursos; se conserva el compromiso hasta la entrega.
+
+### Código y persistencia
+
+**ExecutionController.** Define endpoints concretos y un DTO Completion con validación y normalización de nota. Obtiene el subject del JWT y nunca recibe propietario, estado o fechas arbitrarios. OpenAPI publica los esquemas y descripciones.
+
+**ExecutionStore.** Delimita transacciones locales. Step describe los estados anterior/siguiente y la columna de fecha de cada acción; la columna SQL se obtiene únicamente de ese enum. prepare bloquea vehículo y solicitud, comprueba ámbito, idempotencia, asignación y estado, y devuelve una entrada independiente de la entidad JPA. commit vuelve a comprobar versión y asignación después de las llamadas remotas, y guarda transición/historial/fechas de forma atómica. Los logs de transición se emiten tras el commit.
+
+**DispatchValidator.** Realiza las consultas de Fleet y RouteProvider fuera de la transacción. La evidencia incluye límites de vigencia para comprobar que una espera por bloqueo no permita aplicar datos vencidos. Los conflictos de dominio y fallos técnicos se distinguen sin exponer mensajes remotos.
+
+**ExecutionService.** Coordina preparación, revalidación y commit. En completion continúa con AssignmentCoordinator.recover para ejecutar la liberación durable. Una repetición de completion puede recuperar RELEASE aunque el evento original ya exista.
+
+**004-execution.sql.** Agrega dispatched_at, arrived_at, loaded_at, transport_started_at, completed_at y completion_note a assignments sin borrar datos. El historial mantiene actor, estado anterior/nuevo, instante, clave y huella. No se agrega una base de datos ni una entidad compartida entre microservicios.
+
+Fleet libera la reserva sin reactivar ni cambiar el estado operativo de la grúa. Al liberar un compromiso confirmado actualiza la antigüedad disponible del operador, según lo implementado en fase 7. Los índices de exclusividad dejan de ocupar el recurso cuando la reserva pasa a RELEASED.
+
+### Límites respecto de la fase 9
+
+Esta fase permite completar el recorrido principal. Si el despacho vence o pierde elegibilidad, la acción devuelve conflicto y conserva el estado actual; la búsqueda alternativa automática, sus cupos, los cierres por plazo y los procesos periódicos se incorporan en fase 9. Ante una dependencia temporalmente caída, tampoco se extiende el plazo de salida.
+
+Las liberaciones pendientes son durables y recuperables repitiendo la entrega idempotente. Todavía no hay un scheduler que las procese solo después de reiniciar. La cola y los contratos existentes quedan preparados para esa siguiente fase. No hay intervención de ADMIN para aprobar excepciones.
+
+### Ejecución
+
+Actualizar con docker compose up -d --build. La guía PRUEBAS_JAVA.md documenta pruebas aisladas y Phase8IntegrationTest, habilitada con -Dauxiruta.phase8=true. Esta suite detiene/reinicia Fleet para verificar el fallo real y debe ejecutarse sin otra demostración simultánea. Los recorridos completados normalmente se conservan para inspección; los fixtures incompletos se limpian de manera acotada.
+
+### Resultados finales de fase 8
+
+- Pruebas Java aisladas aprobadas: commons 12, Fleet 22 y Assistance 51; 85 en total, sin fallos. Los casos nuevos cubren estados, idempotencia, deadline exclusivo, vigencia inclusiva de ubicación, habilitación estricta, rechazo de reserva inválida y fallos técnicos sin transición.
+- Phase8IntegrationTest: tres casos aprobados sobre las imágenes finales. Se completó el recorrido con rutas reales, se verificaron historial único, nota, liberación y vehículo nuevamente editable. ADMIN/DRIVER fueron rechazados y un segundo operador real no asignado recibió 404; la identidad temporal se eliminó al finalizar.
+- La ubicación antigua y el plazo de despacho vencido produjeron 409 sin avanzar. La prueba de caída real de Fleet conservó COMPLETED con resourceReleasePending y bloqueó otra solicitud del mismo vehículo. Tras reiniciar Fleet, repetir la entrega original liberó sin duplicar el evento.
+- Phase7IntegrationTest pasó antes de comenzar y después de la implementación: cinco casos sin fallos en la ejecución final, incluida recuperación de confirmación incierta tras reiniciar Assistance.
+- Se conservaron las solicitudes completadas normalmente y su historial. Los fixtures incompletos se limpiaron de manera acotada. Los contenedores quedan iniciados y el operador demo queda no disponible con sus grúas de prueba inactivas/desvinculadas.
+- README, plan de fases, guía de pruebas, infraestructura y este registro se actualizaron. git diff --check no detectó errores. .env sigue ignorado; no se modificaron diagramas ni se realizó commit o push.
+
+## Fase 9 — Automatización y recuperación completa — 8 de noviembre de 2026
+
+### Verificación de la fase anterior y correcciones
+
+Antes de los cambios, los tres escenarios de integración de fase 8 pasaron. La recuperación automática exigió adaptar sus expectativas: un despacho vencido puede iniciar una alternativa y la liberación puede concluir de manera asíncrona. Se conservan los controles de autorización, propiedad, idempotencia y orden del recorrido.
+
+Se corrigió la paginación del cliente de pruebas para encontrar propuestas después de cien registros y se acotó la limpieza para impedir que el scheduler siga buscando recursos para sus fixtures. La limpieza resuelve una reserva incierta repitiendo el PUT original antes de liberarla. Se añadió compatibilidad con los payloads persistidos antes de incorporar los tiempos de reserva.
+
+En la integración apareció una recuperación incorrecta del Gateway tras parar Fleet y reiniciar Assistance. Se limitó a diez segundos la caché DNS del cliente, sin caché negativa, para renovar las direcciones de los servicios en Docker.
+
+### Código y comportamiento construido
+
+- `AutomationJobs` separa la recuperación de acciones y el avance del negocio en dos tareas programadas. El polling detecta trabajo vencido; las fechas persistidas y los snapshots determinan cuándo corresponde actuar. Las reconciliaciones consultan Fleet por lotes.
+- `AutomationStore` aplica decisiones locales dentro de transacciones: plazos de búsqueda y propuesta, cupos, cierre y reemplazo previo al despacho. Bloquea vehículo y solicitud antes de decidir. El nuevo intento comienza solo después de liberar el compromiso anterior. Registra cada transición en el historial con actor SYSTEM.
+- `AssignmentStore` guarda `failure_count` y `next_attempt_at`. Una reclamación temporal impide ejecutar simultáneamente la misma acción; tras una caída queda recuperable. `AssignmentCoordinator` realiza HTTP fuera de la transacción y reintenta a los 5, 15, 30 y luego 60 segundos, sin descartar incertidumbres por agotar intentos. Credenciales inválidas se difieren y los límites remotos respetan Retry-After.
+- `FleetClient` consulta antes de volver a confirmar y preserva el instante original confirmado por Fleet. Un GET ausente no autoriza a olvidar una reserva incierta: se repite el PUT original y luego se compensa si la solicitud terminó.
+- `ReservationJobs` vence retenciones HELD. Nunca vence automáticamente una reserva CONFIRMED. El contrato interno de consulta de estados permite reconciliar hasta cien intentos por lote.
+- `EvaluationStore` reclama temporalmente la evaluación para evitar que el scheduler y una petición inicial la ejecuten a la vez. Las fechas técnicas de planificación no alteran la versión optimista del negocio. Al reiniciar se recuperan las solicitudes abiertas; el despliegue soportado es una instancia por servicio.
+- `RulesConfiguration` aplica el perfil demo y guarda su versión y valores en el snapshot. Fleet recibe los tiempos del intento; así una solicitud existente conserva sus reglas al cambiar el perfil.
+- Las migraciones SQL son aditivas. No requieren borrar datos ni reinicializar las bases. La variable `AUXIRUTA_AUTOMATION_ENABLED`, activa por defecto, permite aislar diagnósticos técnicos.
+
+### Reglas preservadas
+
+Cinco ofertas por intento, dos reemplazos previos al despacho, cancelación únicamente antes de la primera aceptación y ninguna reasignación automática desde DISPATCHED. Una propuesta vencida no consume por sí sola un reemplazo de servicio aceptado. Una confirmación incierta bloquea cierre y cancelación hasta resolverla; una solicitud terminal con liberación pendiente mantiene bloqueado su vehículo. No se agregan notificaciones ni decisiones operativas humanas.
+
+La guía PRUEBAS_JAVA.md documenta el perfil demo y los siete escenarios integrales. README, plan, infraestructura y parámetros de referencia reflejan la implementación. La colección Postman y la entrega integral siguen perteneciendo a fase 10.
+
+### Resultados de verificación de fase 9
+
+- Pruebas Java aisladas: commons 12, Fleet 24 y Assistance 62; 98 aprobadas, sin fallos. Las imágenes Docker finales compilan y validan los esquemas existentes.
+- Phase9IntegrationTest: siete escenarios aprobados con perfil demo y ORS real. La recuperación tras detener Fleet y reiniciar Assistance funcionó sin reiniciar el Gateway ni repetir la entrega. Se verificaron los cinco ofrecimientos, los dos reemplazos, expiración y compensación de incertidumbres.
+- Regresión Phase7IntegrationTest: cinco escenarios aprobados. Phase8IntegrationTest: tres escenarios aprobados con perfil normal. La suite general BackendIntegrationTest aprobó cuatro escenarios y 148 comprobaciones HTTP; su quinto caso optativo de rutas no fue habilitado en esta ejecución. Las suites de fases 7, 8 y 9 sí utilizaron rutas reales.
+- El perfil final de los contenedores es docker, con automatización activa. Los cinco contenedores quedan iniciados. Los recursos de prueba fueron liberados; el operador demo queda no disponible y las grúas de prueba inactivas/desvinculadas. Se conservan filas e historiales para inspección.
+- Documentación arquitectónica 2.6: refleja implementación y perfil demo sin cambiar la línea base AR-MVP-5. No se modificaron diagramas. .env continúa ignorado; no se imprimieron credenciales ni se realizó commit o push.
+## Fase 10 — Verificación y entrega — 9 de noviembre de 2026
+
+### Integridad de fase 9
+
+Se inició Docker Desktop, se levantó el perfil demo y se ejecutaron los siete escenarios de Phase9IntegrationTest antes de modificar la entrega. Todos aprobaron: búsquedas, expiración, cupos, dos reemplazos y recuperación durable tras reinicios. Se restauró el perfil normal para la demostración pública. Se preservaron los cambios de fases anteriores que estaban sin commit.
+
+### Construcción y explicación del código
+
+- `DeliveryArtifacts` define el recorrido de demostración mediante una lista de pasos Java. Cada paso declara rol, método, URL, cuerpo, HTTP esperado, capturas de IDs, condiciones observables y claves de idempotencia. Genera la colección Postman y el entorno vacío; no contiene secretos ni IDs fijos de datos existentes.
+- `DeliveryArtifactsTest` compara el JSON versionado con la definición Java y exige 47 solicitudes reales dentro de las carpetas. Detecta que un cambio en los pasos no haya sido exportado. Se ejecuta sin Docker. El Dockerfile de Gateway copia los JSON públicos al build para ejecutar esta comprobación; no los empaqueta en la imagen final.
+- `DeliveryIntegrationTest` lee las solicitudes del JSON publicado, sustituye variables y las ejecuta con el cliente Java existente. Comprueba códigos, estados, rutas reales, idempotencia, historial único y liberación. Las consultas asíncronas esperan un resultado acotado; no modifican los deadlines del negocio. La paginación busca la propuesta por solicitud, por lo que el historial de demostraciones anteriores no impide encontrarla.
+- La misma suite consulta las dos especificaciones OpenAPI, compara todos los mappings públicos de los controladores y verifica autenticación, resúmenes y respuestas. Por defecto compara contra los contratos versionados; solo `auxiruta.export=true` permite actualizarlos deliberadamente.
+- `DemoDataSetupTest` prepara mediante APIs el perfil de operator.demo, lo crea si falta y renueva su habilitación. Rechaza una preparación sobre una grúa vinculada en lugar de retirar recursos ajenos. No crea una vía administrativa de excepción ni cambia las reglas del dominio.
+- `Start-AuxiRuta.ps1` valida Compose, construye o reutiliza imágenes y espera disponibilidad HTTP protegida. `Verify-AuxiRuta.ps1` coordina Maven y las suites Java en serie; restaura el perfil normal después de las pruebas demo. Los scripts son herramientas operativas, no implementaciones alternativas de reglas o pruebas de negocio.
+- `docs/ENTREGA.md` reúne requisitos, arranque, identidades, preparación, PKCE en Postman, orden de ejecución, escenarios, regeneración de contratos, recuperación ante fallos y exclusiones. Los contratos privados se documentan separadamente en `docs/api/INTEGRACION_INTERNA.md` y permanecen inaccesibles por Gateway.
+
+### Correcciones durante la verificación
+
+La descripción OpenAPI de Assistance todavía indicaba que la integración de rutas estaba pendiente. Se actualizó y se añadieron las respuestas de error comunes a los controladores de asignación y ejecución. No cambió ningún permiso ni endpoint de negocio.
+
+El primer generador copiaba arreglos vacíos al crear las carpetas, por lo que su exportación no contenía solicitudes. Se corrigió el orden de construcción y se añadió el conteo obligatorio de 47 pedidos tanto en el artefacto como en su ejecución Java. También se corrigió la longitud de las patentes generadas para respetar el máximo normalizado de diez caracteres.
+
+La grúa de demostración se ubica en un punto distinto del origen para verificar una aproximación vial positiva, además del traslado. Se corrigió la limpieza de la prueba: una ejecución exitosa ya deja los recursos libres e inactivos por las propias APIs y no debe intentar repetir un cambio de estado con otra clave. La limpieza técnica acotada se reserva para fixtures interrumpidos.
+
+### Material entregado
+
+La colección contiene cinco carpetas y 47 pasos con casos positivos y negativos. Los access tokens del entorno se entregan vacíos. Los JSON OpenAPI describen todos los endpoints públicos; la integración privada conserva sus DTOs independientes. El README, el plan de fases y la documentación arquitectónica se sincronizan con la entrega, sin modificar AR-MVP-5 ni los diagramas.
+
+Los scripts de Postman utilizan el lenguaje JavaScript exigido por su sandbox para encadenar peticiones y mostrar comprobaciones interactivas. Las pruebas automatizadas mantenidas en el repositorio se implementan en Java. Los comandos de preparación y verificación no necesitan instalar dependencias de otro lenguaje.
+
+La construcción aislada del Gateway en Docker también detectó diferencias CRLF/LF en los cuerpos de las peticiones generadas. Se normalizaron a LF para que la comparación del artefacto sea reproducible entre Windows y Linux. La detección de raíz del proyecto usa los módulos Maven, sin depender de que Compose se copie dentro de la etapa de construcción.
+
+### Resultados finales de fase 10
+
+- Verify-AuxiRuta.ps1 -Integration -IncludeDemo finalizó correctamente: 99 pruebas aisladas aprobadas (commons 12, Fleet 24, Assistance 62 y coherencia de colección 1), además de 22 escenarios integrales (base con ORS real 5, fase 7: 5, fase 8: 3, entrega: 2 y fase 9: 7). Las suites optativas se omiten deliberadamente en builds ordinarios y se habilitan en sus pasos de integración.
+- OpenAPI verificó los 38 endpoints públicos: 18 de Fleet y 20 de Assistance. Los JSON exportados coinciden con los contratos vivos y todos los mappings públicos de los controladores.
+- La colección se ejecutó además con Newman 6.2.3: 48 llamadas, incluidas las consultas adicionales de paginación, y 111 aserciones aprobadas, sin fallos. Se detectó y corrigió un conflicto con la variable global data del sandbox; los scripts ahora se ejecutan en su propio ámbito. Esta comprobación adicional utilizó un lanzador temporal Java y tokens efímeros; el lanzador y el entorno temporal se eliminaron. Newman no es una dependencia para compilar ni para ejecutar el backend o su suite Java.
+- El perfil final es docker, con los cinco contenedores iniciados. La preparación y las pruebas conservaron el volumen, historiales y recursos identificados como fixtures; los recursos de prueba terminaron libres, las grúas inactivas/desvinculadas y el operador demo no disponible.
+- La guía ENTREGA.md, README, plan de fases, guía de pruebas, infraestructura y decisiones arquitectónicas 2.7 documentan la entrega. No se modificó AR-MVP-5, no se tocaron los diagramas y no se realizó commit ni push. .env permanece ignorado y los archivos publicados no incluyen tokens ni claves reales.
+
+## Auditoría posterior a fase 10 — 9 de noviembre de 2026
+
+Se contrastó AR-MVP-5 y las decisiones finales del chat con el código. La verificación aislada aprobó 99 pruebas; no se repitió integración en esta revisión. AUDITORIA_CONFORMIDAD.md registra tres diferencias funcionales de prioridad alta y una brecha de pruebas. Los hallazgos están pendientes: no se modificó código productivo ni se cambió la línea base para acomodar la implementación. La finalización de las fases no implica conformidad total mientras sigan abiertos.
+
+## Ajuste de ubicación acordado el 9 de noviembre de 2026
+
+La ubicación informada se considera fija hasta la salida. Su vigencia de 300 segundos, inclusiva, se comprueba al seleccionar, reservar y confirmar una propuesta. Superado ese plazo, el operador debe volver a enviar coordenadas para recibir o aceptar propuestas. Una asignación ya aceptada conserva esa posición sin caducidad por antigüedad: no se exige actualizar para despachar ni se libera por ese motivo. Permanecen vigentes la comprobación de rutas, la habilitación y el plazo independiente de 300 segundos para declarar el despacho. Este ajuste sustituye la restricción previa de ubicación de 120 segundos; no elimina los controles de ubicación para una futura solicitud.
+Se separó la elegibilidad de reserva/confirmación de la elegibilidad de un compromiso confirmado en Fleet. DispatchValidator mantiene las fechas de vigencia de rutas sin usar antigüedad de posición. Se añadieron pruebas de ubicación antigua aceptada y rechazo de confirmación con más de cinco minutos. El hallazgo H2 de la auditoría queda atendido por este cambio; H1 y H3 no se declaran cerrados.
+
+## Ubicación bloqueada durante propuesta o servicio — 9 de noviembre de 2026
+
+El operador puede informar coordenadas mientras su grúa esté libre. Desde que Fleet crea una retención HELD, y durante el compromiso CONFIRMED, la actualización devuelve 409 sin modificar coordenadas ni locationUpdatedAt, incluso si se envían las mismas coordenadas. Se asume permanencia en la posición informada hasta el despacho. El bloqueo comparte el bloqueo transaccional de grúa con la reserva para evitar una carrera entre ofrecer y actualizar.
+
+Si el operador rechaza una propuesta, o esta vence o el conductor cancela antes de aceptación, se vuelve a permitir informar ubicación cuando Fleet confirma la liberación o materializa la expiración. Mientras la liberación sea incierta no se permite actualizar. El operador rechaza propuestas: no se incorpora una cancelación operativa posterior a aceptar. Una grúa libre puede actualizar su ubicación aunque todavía tenga vigencia; superar 300 segundos exige actualizarla para nuevas propuestas y confirmaciones.
+
+Este ajuste elimina el cambio de coordenadas entre propuesta y aceptación identificado en H3. No demuestra por sí mismo la vigencia temporal de las rutas cacheadas: ese borde de la auditoría sigue pendiente de verificación específica. H1 continúa pendiente.
+Se agregó freeTruck bajo la transacción de FleetService.location. La prueba comprueba 409, conservación de posición/fecha y nueva actualización después de liberar. La colección conserva 47 pasos y ahora espera 409 en el paso 28; la prueba de fase 8 se ajustó al mismo contrato.
+
+## Evaluación conservada durante la propuesta — 9 de noviembre de 2026
+
+Por decisión explícita del usuario, la ruta debe estar vigente al emitir la propuesta y conserva su validez durante toda su ventana de aceptación, sin recalcular por superar luego los 300 segundos. Se asumen posición y condiciones constantes; la posición está bloqueada por Fleet mientras exista HELD/CONFIRMED. No se extienden los plazos de propuesta o búsqueda. La ubicación debe seguir dentro de sus cinco minutos al confirmar y la habilitación debe ser válida. El despacho mantiene su revalidación independiente de rutas.
+
+AssignmentStore.respond ya confirmaba sin solicitar nuevas rutas; se documentó esta decisión en el código y se sustituyó la regla anterior en la especificación consolidada y el documento de reglas. Se agregó una prueba Java de integración que envejece exclusivamente la evidencia de su fixture mientras la propuesta permanece vigente, comprueba el bloqueo de coordenadas, acepta y verifica que no aumenten las llamadas registradas a ORS. No se cambia la hora del sistema ni se agregan endpoints de simulación.
+
+Esta simplificación sustituye la obligación anterior de recalcular al aceptar y atiende el borde temporal de H3. H1 permanece pendiente; el cierre de regresión requiere ejecutar los escenarios correspondientes.
+Validación del ajuste: reconstrucción Docker completada y prueba Phase7IntegrationTest#activeProposalKeepsItsRouteEvidenceUntilAcceptance aprobada contra los contenedores reales. La aceptación mantuvo la evidencia de más de 300 segundos sin aumentar routing_calls y el cambio de ubicación devolvió 409. No se ejecutó la suite integral completa en este ajuste; H1 sigue abierto y la regresión global permanece pendiente.
+
+## Rechazo y vencimiento de despacho — 9 de noviembre de 2026
+
+El rechazo explícito excluye al operador de nuevas propuestas para esa misma solicitud, en el intento actual y los posteriores, aunque cambie de grúa. No lo excluye de otras solicitudes. La exclusión usa el registro durable response_kind=REJECT, independiente de que luego se cierre la asignación.
+
+El vencimiento del despacho no constituye rechazo: una vez confirmada la liberación, el mismo operador puede competir en el siguiente intento si mantiene disponibilidad, habilitación, compatibilidad y ubicación vigente. No obtiene una asignación garantizada ni prioridad especial. Se conservan los cupos de propuestas y los dos reemplazos máximos, y la primera aceptación sigue impidiendo cancelar.
+
+La prueba de cinco ofertas se adapta a propuestas vencidas, ya que cinco rechazos del mismo operador no son válidos bajo la regla nueva. Se agrega una prueba que conserva un rechazo real y prepara el segundo intento para comprobar la exclusión. La prueba de dos reemplazos verifica el caso permitido de reutilización tras vencer despacho.
+### Resultado de verificación de H1
+
+Las tres pruebas seleccionadas de Phase9IntegrationTest aprobaron el 9 de noviembre de 2026: rejectingOperatorIsExcludedInNextAttempt, twoReassignmentsThenCloseWithoutRestoringCancellation y fiveExpiredOffersExhaustTheSearchWithoutChangingDeadline. Verifican exclusión del operador que rechaza al preparar un segundo intento, reutilización permitida después de vencer el despacho y conservación del cupo de cinco ofertas. El primer escenario prepara el segundo intento mediante SQL sobre su fixture; no pretende reproducir por sí solo todo el recorrido de un segundo operador.
+
+H1 queda atendido según la regla explícitamente reformulada por el usuario. La regresión integral conjunta de todos los ajustes posteriores a la auditoría sigue pendiente; estos tres resultados no se presentan como una ejecución de toda la suite. No se modificaron los límites de cinco ofertas ni de dos reemplazos.
+
+## Cierre de regresión conjunta — 9 de noviembre de 2026
+
+Se ejecutó `scripts/Verify-AuxiRuta.ps1 -Integration -IncludeDemo` con resultado satisfactorio. Aprobaron 102 pruebas aisladas (12 Commons, 27 Fleet, 62 Assistance y 1 de artefactos) y 24 pruebas de integración: BackendIntegrationTest (5), Phase7IntegrationTest (6), Phase8IntegrationTest (3), DeliveryIntegrationTest (2) y Phase9IntegrationTest (8). Las suites optativas omitidas en la compilación inicial se ejecutaron posteriormente con sus indicadores correspondientes; no se cuentan omisiones como aprobaciones.
+
+La ejecución incluyó los contenedores reales, autenticación con Keycloak, consulta real a ORS, concurrencia de aceptación/cancelación, recuperación, ejecución del traslado, automatización y los 47 pasos de la colección publicados, ejecutados por el verificador Java. También se contrastaron los contratos OpenAPI. No se ejecutó Newman en esta regresión.
+
+H1, H2 y H3 quedan atendidos respecto de las reglas reformuladas explícitamente y documentadas en los apartados anteriores. H4 queda atendido mediante las pruebas adicionales de exclusión por rechazo, vigencia de ubicación y conservación de evidencia durante la propuesta, junto con esta regresión conjunta. La prueba de exclusión prepara el segundo intento mediante SQL sobre su fixture; no representa por sí sola una ejecución completa con dos operadores.
+
+Al finalizar se restituyó el perfil normal docker. Los cinco contenedores quedaron en ejecución, con cero reservas HELD/CONFIRMED, cero grúas TEST vinculadas y cero acciones remotas pendientes. No fue necesario modificar código productivo durante esta regresión. Los resultados cierran el pendiente de verificación conjunta, sin constituir una garantía de ausencia de defectos fuera de los escenarios cubiertos.

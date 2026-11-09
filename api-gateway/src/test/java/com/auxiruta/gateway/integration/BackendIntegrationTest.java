@@ -124,7 +124,7 @@ class BackendIntegrationTest {
   dk("POST","/assistance-requests",request.deepCopy().put("description","Changed"),creationKey,409);dk("POST","/assistance-requests",request,key(),409);
   d("PATCH",vp,object("declaredWeightKg",2000),409);d("PATCH",vp+"/registration-status",object("status","INACTIVE"),409);
   d("GET",rp,null,200);a("GET",rp,null,200);o("GET",rp,null,404);call("OTHER_DRIVER","GET",api(rp),null,404);
-  d("GET","/assistance-requests?status=REQUESTED",null,200);a("GET","/assistance-requests",null,200);assertTrue(o("GET","/assistance-requests",null,200).path("content").isEmpty());
+  d("GET","/assistance-requests?status=REQUESTED",null,200);a("GET","/assistance-requests",null,200);assertFalse(o("GET","/assistance-requests",null,200).path("content").toString().contains(rid));
   assertEquals(2,d("GET",rp+"/history",null,200).path("totalElements").asInt());call("OTHER_DRIVER","GET",api(rp+"/history"),null,404);
   a("POST",rp+"/cancellations",object("reason","Cancel"),403);call("OTHER_DRIVER","POST",api(rp+"/cancellations"),object("reason","Cancel"),key(),404);
   String cancellationKey=key();ObjectNode cancel=object("reason","Integration finished");JsonNode event=dk("POST",rp+"/cancellations",cancel,cancellationKey,200);
@@ -173,7 +173,7 @@ class BackendIntegrationTest {
    JsonNode created=dk("POST","/assistance-requests",body,key(),201);rid=id(created);
    JsonNode evaluation=created.path("latestEvaluation");
    assertEquals("VIABLE",evaluation.path("result").asText(),"Real route evaluation reason: "+evaluation.path("reasonCode").asText());
-   assertEquals("PENDING_EVALUATION",created.path("status").asText());
+   assertEquals("AWAITING_ACCEPTANCE",created.path("status").asText());
    assertTrue(evaluation.path("transportDistanceM").asDouble()>=500);
    JsonNode candidate=evaluation.path("candidates").get(0);assertEquals(tid,candidate.path("towTruckId").asText());assertTrue(candidate.path("eligible").asBoolean());assertEquals(1,candidate.path("rankingPosition").asInt());assertTrue(candidate.path("approachDistanceM").asDouble()>0);
    assertEquals(evaluation,d("GET","/assistance-requests/"+rid,null,200).path("latestEvaluation"));
@@ -182,7 +182,7 @@ class BackendIntegrationTest {
    assertEquals("REJECTED",rejected.path("status").asText());assertEquals("OUTSIDE_COVERAGE",rejected.path("latestEvaluation").path("reasonCode").asText());
    System.out.println("Real ORS evaluation: transport="+evaluation.path("transportDistanceM").asText()+"m, approach="+candidate.path("approachDistanceM").asText()+"m, ranking=1");
   } finally {
-   if(rid!=null){var current=d("GET","/assistance-requests/"+rid,null,200);if(current.path("status").asText().equals("PENDING_EVALUATION"))dk("POST","/assistance-requests/"+rid+"/cancellations",object("reason","Test cleanup"),key(),200);}
+   if(rid!=null){var current=d("GET","/assistance-requests/"+rid,null,200);if(List.of("PENDING_EVALUATION","AWAITING_ACCEPTANCE").contains(current.path("status").asText()))dk("POST","/assistance-requests/"+rid+"/cancellations",object("reason","Test cleanup"),key(),200);}
    o("PATCH","/operators/me/availability",object("status","UNAVAILABLE"),200);
    call("ADMIN","PATCH",api("/tow-trucks/"+tid+"/operational-status"),object("status","INACTIVE","reason","Test finished"),key(),200);
    a("DELETE","/tow-trucks/"+tid+"/operator",null,204);

@@ -70,7 +70,7 @@ docker compose up -d
 
 ```
 
-`down` conserva el volumen PostgreSQL si se omite `-v`. No eliminar el volumen para aplicar cambios. El inicializador crea las tres bases y sus roles solo cuando el volumen está vacío; las actualizaciones posteriores requieren SQL explícito. Las tablas de negocio se agregarán con sus entidades, usando ddl-auto=validate. Keycloak administra su esquema.
+`down` conserva el volumen PostgreSQL si se omite `-v`. No eliminar el volumen para aplicar cambios. El inicializador crea las tres bases y sus roles solo cuando el volumen está vacío; las actualizaciones posteriores requieren SQL explícito. Las tablas de negocio se administran mediante scripts SQL aditivos y ddl-auto=validate. Keycloak administra su esquema.
 
 El import de realm omite un realm existente. Modificar el JSON o las contraseñas del .env no actualiza automáticamente los usuarios, secretos ni contraseñas de base ya persistidos. Los cambios deben aplicarse mediante administración de Keycloak/SQL y reflejarse luego en configuración. El archivo .env contiene secretos locales y queda excluido de Git y del contexto de construcción.
 
@@ -88,7 +88,7 @@ Con los contenedores iniciados:
 
 La reparación Java usa la cuenta bootstrap local para asociar el scope `basic` a los dos clientes y no modifica usuarios ni contraseñas. Requiere conservar las credenciales locales de `.env`. No es un flujo de autenticación de usuarios de AuxiRuta. Los nuevos realms ya incluyen este scope en el JSON de importación. No se debe borrar el volumen para aplicar esta corrección.
 
-La suite Java realiza login PKCE, mantiene tokens en memoria y prueba el Gateway en localhost:8000. También verifica Fleet y Assistance directamente mediante `docker compose exec` y curl dentro de la red privada, sin publicar sus puertos. No imprime ni guarda tokens. Las rutas internas de reservas siguen pendientes de fase 7; los vehículos y solicitudes ya tienen controladores funcionales.
+La suite Java realiza login PKCE, mantiene tokens en memoria y prueba el Gateway en localhost:8000. También verifica Fleet y Assistance directamente mediante `docker compose exec` y curl dentro de la red privada, sin publicar sus puertos. No imprime ni guarda tokens. Las rutas internas de reservas están implementadas desde fase 7; los vehículos y solicitudes ya tienen controladores funcionales.
 
 Los roles de acceso se aplican por método y ruta. Un JWT ausente o inválido recibe 401; un rol o cliente sin permiso recibe 403. Los vehículos y solicitudes ajenos devuelven 404; los listados de DRIVER se filtran por propietario. Las respuestas de error usan `application/problem+json`.
 
@@ -117,3 +117,28 @@ Agregar la clave personal únicamente en `.env` como `ORS_API_KEY`. `.env.exampl
 Sin clave, Assistance inicia y conserva las solicitudes con evaluación PENDING_DEPENDENCY y motivo CONFIGURATION. No inventa rutas. La configuración necesita salida HTTPS hacia el proveedor. El presupuesto local limita a 40 llamadas por 60 segundos y 2.000 por 24 horas; se conserva en PostgreSQL junto con las pausas indicadas por el proveedor. Una clave compartida con aplicaciones externas puede consumir cuota fuera de este contador; las respuestas remotas siguen siendo autoridad.
 
 El esquema aditivo `002-evaluation.sql` se aplica al arrancar Assistance y Hibernate valida el mapeo. No se borran volúmenes ni datos anteriores. Las tablas nuevas son evaluations, candidate_evaluations, routing_budget y routing_calls.
+
+## Reservas y propuestas — fase 7
+
+El arranque aplica de forma aditiva 002-reservations.sql en Fleet y 003-assignments.sql en Assistance. Las tablas nuevas son resource_reservations, assignments y pending_actions; assistance_requests incorpora resource_release_pending. No se agregan contenedores ni bases de datos.
+
+Actualizar con docker compose up -d --build. La aceptación normal alcanza ASSIGNED. Los registros PENDING/RETRYING conservan las operaciones inciertas. Desde fase 9, un proceso periódico recupera la cola, también después de un reinicio. Repetir una respuesta de operador con la misma Idempotency-Key permite recuperar su operación pendiente.
+
+## Ejecución del servicio — fase 8
+
+El script aditivo 004-execution.sql incorpora las fechas de despacho, llegada, carga, inicio del traslado y entrega, además de la nota de entrega, a assignments. No agrega bases ni contenedores. Actualizar con docker compose up -d --build conservando los volúmenes.
+
+La prueba Phase8IntegrationTest detiene/reinicia fleet-service deliberadamente. Ejecutarla sin otras pruebas simultáneas. Una entrega con Fleet caído permanece COMPLETED con resourceReleasePending y una acción RELEASE durable. Repetir la misma entrega con la misma clave permite recuperar la liberación; el procesamiento periódico de la cola está implementado desde fase 9 y no requiere repetir la entrega.
+
+## Automatización y perfil demo — fase 9
+
+`docker compose up -d --build` incorpora las migraciones aditivas `assistance-service/src/main/resources/db/005-automation.sql` y `fleet-service/src/main/resources/db/003-automation.sql`, cargadas desde los recursos de cada aplicación. Conserva el volumen y los datos existentes. Assistance persiste fechas de ejecución, intentos y reclamaciones de tareas; Fleet registra si llegó a crear una retención.
+
+`SPRING_PROFILES_ACTIVE` vale `docker` por defecto; `docker,demo` activa los plazos reducidos. `AUXIRUTA_AUTOMATION_ENABLED` vale `true`; desactivarlo es una opción técnica de diagnóstico, no el modo comprometido del MVP. Cambiar variables requiere recrear contenedores con `up -d`; `start` conserva la configuración anterior.
+
+La solución se despliega con una instancia de cada microservicio. Al iniciar, Assistance recupera la planificación de solicitudes abiertas y procesa las acciones pendientes de PostgreSQL. La caché DNS del cliente del Gateway tiene un máximo de diez segundos para recuperar cambios de dirección de los contenedores. Las llamadas HTTP no mantienen abiertas las transacciones locales.
+
+
+## Entrega integrada
+
+La [guía de entrega](../docs/ENTREGA.md) reúne el procedimiento de primer arranque, preparación del operador, colección Postman y contratos. Start-AuxiRuta.ps1 espera disponibilidad real y Verify-AuxiRuta.ps1 coordina las pruebas Java y restaura el perfil normal tras la demostración temporal.

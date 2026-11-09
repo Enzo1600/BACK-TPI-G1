@@ -2,7 +2,10 @@
 .git
 .env
 .env.*
-docs
+docs/*
+!docs/api/
+docs/api/*
+!docs/api/*.json
 **/*.log
 .idea
 .vscode

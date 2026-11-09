@@ -7,6 +7,10 @@ import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 @Configuration
 public class GatewayRoutes {
     @Bean
+    org.springframework.cloud.gateway.config.HttpClientCustomizer containerDns() {
+        return client -> client.resolver(spec -> spec.cacheMaxTimeToLive(java.time.Duration.ofSeconds(10)).cacheNegativeTimeToLive(java.time.Duration.ZERO));
+    }
+    @Bean
     RouteLocator routes(RouteLocatorBuilder builder,
             @Value("${FLEET_URI:http://fleet-service:8081}") String fleet,
             @Value("${ASSISTANCE_URI:http://assistance-service:8082}") String assistance) {
