@@ -160,6 +160,42 @@
       "realmRoles": [
         "ADMIN"
       ]
+    },
+    {
+      "username": "driver2.demo",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Driver",
+      "lastName": "Demo 2",
+      "email": "driver2@auxiruta.example",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_DRIVER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "DRIVER"
+      ]
+    },
+    {
+      "username": "operator2.demo",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Operator",
+      "lastName": "Demo 2",
+      "email": "operator2@auxiruta.example",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_OPERATOR_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "OPERATOR"
+      ]
     }
   ]
 }

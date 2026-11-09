@@ -152,3 +152,7 @@ Las suites de fases 7, 8 y 9 se ejecutan por separado. Las comprobaciones observ
 ## Entrega — fase 10
 
 DeliveryArtifactsTest verifica que los 47 pedidos publicados coincidan con su definición Java. DeliveryIntegrationTest ejecuta esas solicitudes, compara los contratos OpenAPI con los controladores y comprueba el recorrido, estados y efectos. DemoDataSetupTest prepara el operador por APIs. La guía [ENTREGA.md](ENTREGA.md) documenta todos los comandos y escenarios. Verify-AuxiRuta.ps1 reúne las suites anteriores, con integración y perfil demo opcionales; no ejecutarlas simultáneamente.
+
+## Preparación persistente de privacidad
+
+PrivacyDemoSetupTest se habilita con -Dauxiruta.privacySeed=true y -Dtest=PrivacyDemoSetupTest en api-gateway. Crea las cuentas secundarias y fixtures persistentes, verifica privacidad por API y ejecuta las diez peticiones publicadas. No necesita ORS. También se invoca desde DemoDataSetupTest. Instrucciones en [DEMO_PRIVACIDAD.md](DEMO_PRIVACIDAD.md).

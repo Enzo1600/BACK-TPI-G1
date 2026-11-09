@@ -15,6 +15,8 @@ La [guía de entrega](docs/ENTREGA.md) permite levantar el backend, preparar dat
 
 Completar primero el `.env` local como indica la guía. Las pruebas integrales requieren ORS y uso exclusivo del entorno.
 
+El [tutorial de Postman y presentación](docs/TUTORIAL_POSTMAN_Y_PRESENTACION.md) explica el primer arranque desde un clon, autenticación, recorrido automático, exploración por endpoint y preparación para la defensa.
+
 ## Documentación vigente
 
 Documento principal: **[Decisiones arquitectónicas](docs/DECISIONES_ARQUITECTONICAS.md)**. Consolida el dominio, la arquitectura, los contratos propuestos, el glosario y la correspondencia con los requisitos mínimos.

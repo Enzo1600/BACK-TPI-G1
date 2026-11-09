@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static com.auxiruta.gateway.integration.BackendClient.*;
 @EnabledIfSystemProperty(named="auxiruta.seed",matches="true")
 class DemoDataSetupTest {
- @Test void prepareOperator()throws Exception {initialize();prepare();}
+ @Test void prepareOperator()throws Exception {initialize();prepare();PrivacyDemoSetupTest.prepare();}
  static String prepare()throws Exception {
   var response=raw("OPERATOR","GET","/api/v1/operators/me",null,null);String operator;
   if(response.status()==404)operator=id(call("ADMIN","POST","/api/v1/operators",object("keycloakSubject",claims(TOKENS.get("OPERATOR")).path("sub").asText(),"fullName","Operador de demostracion AuxiRuta"),201));

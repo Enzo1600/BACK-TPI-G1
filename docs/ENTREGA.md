@@ -26,7 +26,7 @@ Las bases nuevas se inicializan al crear el volumen; después, los scripts SQL a
 
 ## 2. Identidades y datos iniciales
 
-Compose importa el realm `auxiruta` con `admin.demo`, `operator.demo` y `driver.demo`. Sus contraseñas son las variables `DEMO_ADMIN_PASSWORD`, `DEMO_OPERATOR_PASSWORD` y `DEMO_DRIVER_PASSWORD` del `.env` local. La cuenta `bootstrap-admin` administra Keycloak; no se utiliza como ADMIN de negocio.
+Compose importa el realm `auxiruta` con `admin.demo`, `operator.demo`, `driver.demo`, `operator2.demo` y `driver2.demo`. Sus contraseñas son las variables `DEMO_ADMIN_PASSWORD`, `DEMO_OPERATOR_PASSWORD` y `DEMO_DRIVER_PASSWORD` del `.env` local. La cuenta `bootstrap-admin` administra Keycloak; no se utiliza como ADMIN de negocio.
 
 Preparar o renovar el perfil de operador para la demostración:
 
@@ -135,3 +135,7 @@ La solución no incluye frontend, notificaciones, pagos, seguimiento GPS continu
 ## Evidencia de la entrega del 9 de noviembre de 2026
 
 La ejecución completa aprobó 99 pruebas aisladas y 22 escenarios integrales. La colección también fue ejecutada con Newman 6.2.3: 48 llamadas (47 pasos más paginación) y 111 aserciones sin fallos. Los resultados y correcciones están registrados en [cambios.md](cambios.md). Esta ejecución adicional no agrega Node/Newman como requisito de la solución Java.
+
+## Demostración persistente de privacidad
+
+La preparación DemoDataSetupTest también agrega las cuentas secundarias y vehículos de privacidad. La colección adicional de diez peticiones, las contraseñas por rol y el comando independiente para instalaciones existentes están en [DEMO_PRIVACIDAD.md](DEMO_PRIVACIDAD.md). Local.postman_environment.json incluye driver2_token y operator2_token vacíos. Esta ampliación no modifica los 47 pasos del recorrido principal.

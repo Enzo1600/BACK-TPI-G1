@@ -80,7 +80,7 @@ final class DeliveryArtifacts {
  }
  static Path root(){Path p=Path.of("").toAbsolutePath();return Files.exists(p.resolve("api-gateway/pom.xml"))?p:p.getParent();}
  static void write(String file,JsonNode data)throws Exception {Path p=root().resolve("docs/api").resolve(file);Files.createDirectories(p.getParent());Files.writeString(p,JSON.writerWithDefaultPrettyPrinter().writeValueAsString(data)+"\n");}
- static ObjectNode environment(){var values=JSON.createArrayNode();for(String role:List.of("admin","driver","operator"))values.add(object("key",role+"_token","value","","type","secret","enabled",true));values.add(object("key","base_url","value","http://localhost:8000","type","default","enabled",true));return object("name","AuxiRuta local - sin secretos","values",values,"_postman_variable_scope","environment");}
+ static ObjectNode environment(){var values=JSON.createArrayNode();for(String role:List.of("admin","driver","operator","driver2","operator2"))values.add(object("key",role+"_token","value","","type","secret","enabled",true));values.add(object("key","base_url","value","http://localhost:8000","type","default","enabled",true));return object("name","AuxiRuta local - sin secretos","values",values,"_postman_variable_scope","environment");}
  static ObjectNode collection(){
   var folders=JSON.createArrayNode();Map<String,ArrayNode> groups=new LinkedHashMap<>();
   for(var step:steps()){

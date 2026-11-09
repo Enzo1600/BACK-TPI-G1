@@ -1,0 +1,353 @@
+{
+  "info": {
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "name": "AuxiRuta - Privacidad entre usuarios",
+    "description": "Demo persistente de propiedad. Completar IDs impresos por PrivacyDemoSetupTest y los cuatro tokens del entorno. Ejecutar en orden o manualmente; no crea solicitudes ni consume ORS."
+  },
+  "item": [
+    {
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('Propietario 1', () => pm.expect(pm.response.json().licensePlate).to.eql('DEMODRV1'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/vehicles/{{privacy_vehicle1_id}}",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "value": "{{driver_token}}",
+              "key": "token",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "HTTP esperado: 200. Preparar con PrivacyDemoSetupTest y completar los IDs impresos por el comando."
+      },
+      "name": "01 DRIVER 1 consulta su vehiculo"
+    },
+    {
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/vehicles/{{privacy_vehicle1_id}}",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "value": "{{driver2_token}}",
+              "key": "token",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "HTTP esperado: 404. Preparar con PrivacyDemoSetupTest y completar los IDs impresos por el comando."
+      },
+      "name": "02 DRIVER 2 no puede consultar vehiculo 1"
+    },
+    {
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "value": "application/json",
+            "key": "Content-Type"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/vehicles/{{privacy_vehicle1_id}}",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "value": "{{driver2_token}}",
+              "key": "token",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "HTTP esperado: 404. Preparar con PrivacyDemoSetupTest y completar los IDs impresos por el comando.",
+        "body": {
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          },
+          "raw": "{\r\n  \"brand\": \"Forbidden\"\r\n}",
+          "mode": "raw"
+        }
+      },
+      "name": "03 DRIVER 2 no puede modificar vehiculo 1"
+    },
+    {
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('Propietario 2', () => pm.expect(pm.response.json().licensePlate).to.eql('DEMODRV2'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/vehicles/{{privacy_vehicle2_id}}",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "value": "{{driver2_token}}",
+              "key": "token",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "HTTP esperado: 200. Preparar con PrivacyDemoSetupTest y completar los IDs impresos por el comando."
+      },
+      "name": "04 DRIVER 2 consulta su vehiculo"
+    },
+    {
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/vehicles/{{privacy_vehicle2_id}}",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "value": "{{driver_token}}",
+              "key": "token",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "HTTP esperado: 404. Preparar con PrivacyDemoSetupTest y completar los IDs impresos por el comando."
+      },
+      "name": "05 DRIVER 1 no puede consultar vehiculo 2"
+    },
+    {
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "value": "application/json",
+            "key": "Content-Type"
+          }
+        ],
+        "url": "{{base_url}}/api/v1/vehicles/{{privacy_vehicle2_id}}",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "value": "{{driver_token}}",
+              "key": "token",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "HTTP esperado: 404. Preparar con PrivacyDemoSetupTest y completar los IDs impresos por el comando.",
+        "body": {
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          },
+          "raw": "{\r\n  \"brand\": \"Forbidden\"\r\n}",
+          "mode": "raw"
+        }
+      },
+      "name": "06 DRIVER 1 no puede modificar vehiculo 2"
+    },
+    {
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set('privacy_operator1_id', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/operators/me",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "value": "{{operator_token}}",
+              "key": "token",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "HTTP esperado: 200. Preparar con PrivacyDemoSetupTest y completar los IDs impresos por el comando."
+      },
+      "name": "07 OPERATOR 1 consulta su perfil"
+    },
+    {
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('Identidades distintas', () => pm.expect(pm.response.json().id).not.to.eql(pm.collectionVariables.get('privacy_operator1_id')));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/operators/me",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "value": "{{operator2_token}}",
+              "key": "token",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "HTTP esperado: 200. Preparar con PrivacyDemoSetupTest y completar los IDs impresos por el comando."
+      },
+      "name": "08 OPERATOR 2 consulta su propio perfil"
+    },
+    {
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/operator/assignments",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "value": "{{operator_token}}",
+              "key": "token",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "HTTP esperado: 200. Preparar con PrivacyDemoSetupTest y completar los IDs impresos por el comando."
+      },
+      "name": "09 OPERATOR 1 consulta solo sus asignaciones"
+    },
+    {
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/operator/assignments",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "value": "{{operator2_token}}",
+              "key": "token",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "HTTP esperado: 200. Preparar con PrivacyDemoSetupTest y completar los IDs impresos por el comando."
+      },
+      "name": "10 OPERATOR 2 consulta solo sus asignaciones"
+    }
+  ],
+  "variable": [
+    {
+      "value": "",
+      "key": "privacy_vehicle1_id",
+      "type": "string"
+    },
+    {
+      "value": "",
+      "key": "privacy_vehicle2_id",
+      "type": "string"
+    }
+  ]
+}
