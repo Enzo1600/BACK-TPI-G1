@@ -4,9 +4,9 @@ import java.time.Clock;
 
 /** Provee el reloj UTC que las aplicaciones pueden sustituir en pruebas temporales. */
 public final class UtcClock {
-    private UtcClock() {}
+  private UtcClock() {}
 
-    public static Clock system() {
-        return Clock.systemUTC();
-    }
+  public static Clock system() {
+    return Clock.systemUTC();
+  }
 }

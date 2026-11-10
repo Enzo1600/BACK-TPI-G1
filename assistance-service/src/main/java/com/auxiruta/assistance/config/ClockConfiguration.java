@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class ClockConfiguration {
-    @Bean
-    Clock clock() {
-        return UtcClock.system();
-    }
+  @Bean
+  Clock clock() {
+    return UtcClock.system();
+  }
 }
