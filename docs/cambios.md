@@ -581,3 +581,23 @@ Se agregaron driver2.demo y operator2.demo al realm inicial y una preparación J
 ## Legibilidad del código — 10 de noviembre de 2026
 
 Se reformatearon los 100 archivos Java de producción y pruebas con google-java-format 1.29.0: sangría de dos espacios, bloques e instrucciones separados, parámetros y anotaciones legibles. Se conservaron imports, Javadoc y cadenas. Se separaron las columnas y sentencias de ocho scripts SQL. La comparación léxica confirmó tokens Java idénticos y contenido SQL conservado; no se cambiaron reglas, endpoints, entidades ni dependencias productivas. Los cuatro módulos compilaron/verificaron y aprobaron 102 pruebas aisladas. Docker estaba detenido, por lo que no se repitió integración. Se agregó scripts/Format-Java.ps1 con versión y hash fijados, modo -Check y documentación en FORMATO_CODIGO.md. El PDF previo mantiene su carácter de instantánea y sus números de línea anteriores.
+
+## Swagger UI por Gateway — 18 de noviembre de 2026
+
+Se agregó Swagger UI 5.34.0 como recurso empaquetado del Gateway, accesible en /swagger-ui.html. La página permite elegir Fleet/Assistance y cargar el contrato protegido con un access token de Keycloak. El navegador ejecuta las operaciones contra el mismo Gateway.
+
+SecurityConfiguration permite GET únicamente sobre la página, su script y los dos recursos de Swagger requeridos. Los contratos mantienen su autorización por rol. El script conserva el token en memoria, configura bearerAuth, impide reenviar solicitudes a otro origen y ofrece cierre de acceso.
+
+SwaggerPageTest verifica que la página y los recursos se sirvan sin login y que contratos, negocio y rutas internas sigan rechazando peticiones sin autenticación. La guía de Postman incluye el acceso y uso de Swagger.
+
+Verificación: Verify-AuxiRuta.ps1 -Integration -IncludeDemo finalizó correctamente: 104 pruebas aisladas y 24 de integración (Backend, fases 7/8/9 y entrega), sin fallos. Se verificaron la página en el navegador, el rechazo de un token inválido y la publicación del script actualizado. Docker quedó iniciado con el perfil docker normal. Esta comprobación no incluyó una ejecución manual autenticada de Try it out en el navegador; los contratos y operaciones autenticadas se verificaron mediante las suites Java.
+
+
+## Eliminación de vehículos — 18 de noviembre de 2026
+
+DELETE /api/v1/vehicles/{id} permite a DRIVER eliminar físicamente un vehículo propio únicamente si nunca tuvo solicitudes asociadas. Devuelve 204 sin cuerpo; 404 para inexistente o ajeno; 409 si existe cualquier solicitud, incluso cerrada. En ese caso corresponde inactivarlo. La operación bloquea la fila como la creación de solicitudes para serializar ambas operaciones y conserva las claves foráneas y el historial. No recibe cuerpo ni Idempotency-Key. Una repetición después de eliminar devuelve 404. Gateway y Assistance autorizan exclusivamente DRIVER.
+
+Verificación del cambio: cuatro módulos compilados y 107 pruebas aisladas aprobadas. VehicleDeletionIntegrationTest verificó creación y eliminación reales por Gateway, rechazo de OPERATOR y 404 posterior/repetido. DeliveryIntegrationTest verificó correspondencia de contratos y controladores; se regeneró OpenAPI. Contenedores reconstruidos e iniciados. No se eliminaron vehículos existentes del usuario.
+
+### Privacidad de eliminación de vehículos
+Se añadió el paso 11 a la colección de privacidad: DRIVER 2 intenta DELETE sobre el vehículo de DRIVER 1 y espera 404. PrivacyDemoSetupTest ejecuta el caso publicado y confirma luego que el propietario conserva acceso al vehículo (200). Verificación Java completada sin fallos.

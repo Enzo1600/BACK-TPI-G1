@@ -847,3 +847,7 @@ El operador puede informar coordenadas mientras su grúa esté libre. Desde que 
 Si el operador rechaza una propuesta, o esta vence o el conductor cancela antes de aceptación, se vuelve a permitir informar ubicación cuando Fleet confirma la liberación o materializa la expiración. Mientras la liberación sea incierta no se permite actualizar. El operador rechaza propuestas: no se incorpora una cancelación operativa posterior a aceptar. Una grúa libre puede actualizar su ubicación aunque todavía tenga vigencia; superar 300 segundos exige actualizarla para nuevas propuestas y confirmaciones.
 
 Este ajuste elimina el cambio de coordenadas entre propuesta y aceptación identificado en H3. No demuestra por sí mismo la vigencia temporal de las rutas cacheadas: ese borde de la auditoría sigue pendiente de verificación específica. H1 continúa pendiente.
+
+## Eliminación de vehículos — 18 de noviembre de 2026
+
+DELETE /api/v1/vehicles/{id} permite a DRIVER eliminar físicamente un vehículo propio únicamente si nunca tuvo solicitudes asociadas. Devuelve 204 sin cuerpo; 404 para inexistente o ajeno; 409 si existe cualquier solicitud, incluso cerrada. En ese caso corresponde inactivarlo. La operación bloquea la fila como la creación de solicitudes para serializar ambas operaciones y conserva las claves foráneas y el historial. No recibe cuerpo ni Idempotency-Key. Una repetición después de eliminar devuelve 404. Gateway y Assistance autorizan exclusivamente DRIVER.

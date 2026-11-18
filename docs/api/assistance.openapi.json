@@ -1159,6 +1159,43 @@
           "bearerAuth" : [ ]
         } ]
       },
+      "delete" : {
+        "tags" : [ "request-controller" ],
+        "summary" : "DRIVER: eliminar vehículo propio sin solicitudes asociadas",
+        "operationId" : "deleteVehicle",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "400" : {
+            "description" : "Entrada inválida"
+          },
+          "401" : {
+            "description" : "Autenticación requerida"
+          },
+          "403" : {
+            "description" : "Rol insuficiente"
+          },
+          "404" : {
+            "description" : "Recurso inexistente o ajeno"
+          },
+          "409" : {
+            "description" : "Conflicto de estado, exclusividad o idempotencia"
+          },
+          "204" : {
+            "description" : "Vehículo eliminado"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ]
+      },
       "patch" : {
         "tags" : [ "request-controller" ],
         "summary" : "DRIVER: editar vehículo propio sin solicitud activa",

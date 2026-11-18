@@ -67,6 +67,15 @@ public class RequestController {
     return service.vehicle(id, jwt.getSubject());
   }
 
+  @DeleteMapping("/vehicles/{id}")
+  @Operation(summary = "DRIVER: eliminar vehículo propio sin solicitudes asociadas")
+  @ApiResponse(responseCode = "204", description = "Vehículo eliminado")
+  public ResponseEntity<Void> deleteVehicle(
+      @PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+    service.deleteVehicle(id, jwt.getSubject());
+    return ResponseEntity.noContent().build();
+  }
+
   @PatchMapping("/vehicles/{id}")
   @Operation(summary = "DRIVER: editar vehículo propio sin solicitud activa")
   public VehicleView edit(

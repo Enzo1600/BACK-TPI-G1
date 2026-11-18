@@ -64,7 +64,7 @@ class PrivacyDemoSetupTest {
         JSON.readTree(
             java.nio.file.Files.readString(
                 root.resolve("docs/api/AuxiRuta-privacidad.postman_collection.json")));
-    int[] expected = {200, 404, 404, 200, 404, 404, 200, 200, 200, 200};
+    int[] expected = {200, 404, 404, 200, 404, 404, 200, 200, 200, 200, 404};
     assertEquals(expected.length, collection.path("item").size());
     int index = 0;
     for (var item : collection.path("item")) {
@@ -83,6 +83,9 @@ class PrivacyDemoSetupTest {
               .replace("{{privacy_vehicle2_id}}", second);
       JsonNode body = req.has("body") ? JSON.readTree(req.at("/body/raw").asText()) : null;
       call(role, req.path("method").asText(), path, body, expected[index++]);
+      if (req.path("method").asText().equals("DELETE")) {
+        call("DRIVER", "GET", "/api/v1/vehicles/" + first, null, 200);
+      }
     }
     System.out.println(
         "Privacidad preparada: driver.demo / driver2.demo, operator.demo / operator2.demo.");

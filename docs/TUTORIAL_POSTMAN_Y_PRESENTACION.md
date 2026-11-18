@@ -282,3 +282,13 @@ docker compose logs --tail 80 assistance-service fleet-service api-gateway
 ~~~
 
 No pegar tokens ni el contenido del .env en capturas de la presentación.
+
+## Swagger en el navegador
+
+Abrir http://localhost:8000/swagger-ui.html con el backend iniciado. Elegir Assistance o Fleet, pegar un access token vigente de Keycloak y pulsar Cargar API. El contrato se obtiene con ese token y Swagger lo configura para las peticiones.
+
+Desplegar un endpoint, pulsar Try it out, completar los parámetros/cuerpo y ejecutar con Execute. Las acciones escriben en las bases reales y requieren sus estados previos, permisos y claves de idempotencia. Authorize permite cambiar el token de las operaciones. Para cargar otro contrato, usar el campo superior y Cargar API.
+
+La página y sus recursos visuales son públicos en el Gateway. Los contratos y los endpoints exigen autenticación y permisos. El token permanece en memoria del navegador, con persistAuthorization desactivado. Cerrar acceso limpia la vista y el campo. Al vencer el token, obtener otro en Keycloak/Postman y volver a cargar la API.
+
+Después de actualizar el repositorio, ejecutar .\scripts\Start-AuxiRuta.ps1 -Profile docker para reconstruir las imágenes.

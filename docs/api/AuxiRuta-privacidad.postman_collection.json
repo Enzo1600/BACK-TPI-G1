@@ -336,6 +336,36 @@
         "description": "HTTP esperado: 200. Preparar con PrivacyDemoSetupTest y completar los IDs impresos por el comando."
       },
       "name": "10 OPERATOR 2 consulta solo sus asignaciones"
+    },
+    {
+      "name": "11 DRIVER 2 no puede eliminar vehiculo 1",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{base_url}}/api/v1/vehicles/{{privacy_vehicle1_id}}",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "value": "{{driver2_token}}",
+              "key": "token",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "DRIVER 2 intenta eliminar el vehículo de DRIVER 1. HTTP esperado: 404 para ocultar su existencia; el vehículo se conserva."
+      }
     }
   ],
   "variable": [

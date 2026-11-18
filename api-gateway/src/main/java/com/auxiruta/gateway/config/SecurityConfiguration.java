@@ -93,6 +93,8 @@ public class SecurityConfiguration {
                     .access(allowed(false, "DRIVER"))
                     .pathMatchers(HttpMethod.GET, "/api/v1/vehicles/{id}")
                     .access(allowed(false, "DRIVER"))
+                    .pathMatchers(HttpMethod.DELETE, "/api/v1/vehicles/{id}")
+                    .access(allowed(false, "DRIVER"))
                     .pathMatchers(HttpMethod.PATCH, "/api/v1/vehicles/{id}")
                     .access(allowed(false, "DRIVER"))
                     .pathMatchers(HttpMethod.PATCH, "/api/v1/vehicles/{id}/registration-status")
@@ -132,6 +134,13 @@ public class SecurityConfiguration {
                     .access(allowed(false, "DRIVER", "OPERATOR", "ADMIN"))
                     .pathMatchers(HttpMethod.GET, "/docs/assistance/v3/api-docs")
                     .access(allowed(false, "DRIVER", "OPERATOR", "ADMIN"))
+                    .pathMatchers(
+                        HttpMethod.GET,
+                        "/swagger-ui.html",
+                        "/swagger-ui/app.js",
+                        "/webjars/swagger-ui/5.34.0/swagger-ui.css",
+                        "/webjars/swagger-ui/5.34.0/swagger-ui-bundle.js")
+                    .permitAll()
                     .anyExchange()
                     .denyAll());
     return http.build();

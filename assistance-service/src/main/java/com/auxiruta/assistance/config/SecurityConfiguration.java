@@ -48,6 +48,8 @@ public class SecurityConfiguration {
                     .access(allowed(false, "DRIVER"))
                     .requestMatchers(HttpMethod.GET, "/api/v1/vehicles/{id}")
                     .access(allowed(false, "DRIVER"))
+                    .requestMatchers(HttpMethod.DELETE, "/api/v1/vehicles/{id}")
+                    .access(allowed(false, "DRIVER"))
                     .requestMatchers(HttpMethod.PATCH, "/api/v1/vehicles/{id}")
                     .access(allowed(false, "DRIVER"))
                     .requestMatchers(HttpMethod.PATCH, "/api/v1/vehicles/{id}/registration-status")

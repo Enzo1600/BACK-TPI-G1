@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AuxiRuta - Swagger</title>
+  <link rel="stylesheet" href="/webjars/swagger-ui/5.34.0/swagger-ui.css">
+</head>
+<body>
+  <form id="credentials" style="padding:20px;font-family:sans-serif">
+    <h1>APIs de AuxiRuta</h1>
+    <label>Microservicio
+      <select id="service"><option value="assistance">Assistance</option><option value="fleet">Fleet</option></select>
+    </label>
+    <label>Access token
+      <input id="token" type="password" autocomplete="off" required size="45" placeholder="Pegá el access token de Keycloak">
+    </label>
+    <button type="submit">Cargar API</button>
+    <button id="clear" type="button">Cerrar acceso</button>
+    <p id="status" role="status">Usá un token vigente de DRIVER, OPERATOR o ADMIN.</p>
+  </form>
+  <div id="swagger-ui"></div>
+  <script src="/webjars/swagger-ui/5.34.0/swagger-ui-bundle.js"></script>
+  <script src="/swagger-ui/app.js"></script>
+</body>
+</html>

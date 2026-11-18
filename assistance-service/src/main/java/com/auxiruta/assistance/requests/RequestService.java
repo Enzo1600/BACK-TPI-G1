@@ -166,6 +166,17 @@ public class RequestService {
         h.occurredAt);
   }
 
+  @Transactional
+  public void deleteVehicle(UUID id, String subject) {
+    Vehicle vehicle = locked(id, subject);
+    if (requests.existsByVehicleId(id)) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "El vehículo tiene solicitudes asociadas; puede inactivarse");
+    }
+    vehicles.delete(vehicle);
+    vehicles.flush();
+  }
+
   public VehicleView vehicle(UUID id, String subject) {
     return view(owned(id, subject));
   }

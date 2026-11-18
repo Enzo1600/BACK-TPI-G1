@@ -154,3 +154,7 @@ Assistance busca candidatos periódicamente, vence propuestas y búsquedas, resp
 Las operaciones remotas pendientes sobreviven a reinicios y se reintentan con espera progresiva. Una confirmación incierta se resuelve antes de cerrar por plazo; una liberación pendiente sigue procesándose incluso si la solicitud ya terminó. Fleet vence sus retenciones HELD y conserva los compromisos CONFIRMED hasta liberarlos.
 
 El perfil normal utiliza los plazos acordados. Para demostraciones, `SPRING_PROFILES_ACTIVE=docker,demo` reduce los plazos sin acelerar el reloj ni las cuotas de OpenRouteService. Véanse los comandos y escenarios en [PRUEBAS_JAVA.md](docs/PRUEBAS_JAVA.md). La entrega de fase 10 está documentada en [ENTREGA.md](docs/ENTREGA.md).
+
+### Swagger UI
+
+Con el sistema iniciado, abrir [Swagger UI](http://localhost:8000/swagger-ui.html), elegir Fleet o Assistance y pegar un access token vigente de Keycloak. La página permite consultar el contrato y ejecutar endpoints con los permisos del usuario autenticado. Ver la [guía de uso](docs/TUTORIAL_POSTMAN_Y_PRESENTACION.md).

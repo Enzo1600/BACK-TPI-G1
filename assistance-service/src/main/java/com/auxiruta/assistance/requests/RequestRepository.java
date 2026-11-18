@@ -6,6 +6,8 @@ import org.springframework.data.domain.*;
 import jakarta.persistence.LockModeType;
 
 public interface RequestRepository extends JpaRepository<AssistanceRequest, UUID> {
+  boolean existsByVehicleId(UUID id);
+
   @Query("select r.vehicle.id from AssistanceRequest r where r.id=:id")
   Optional<UUID> vehicleId(UUID id);
 
