@@ -24,9 +24,9 @@ class DeliveryArtifactsTest {
         JSON.readTree(
             Files.readString(
                 DeliveryArtifacts.root().resolve("docs/api/Local.postman_environment.json"))));
-    assertEquals(47, DeliveryArtifacts.steps().size());
+    assertEquals(57, DeliveryArtifacts.steps().size());
     int requests = 0;
     for (var folder : collection.path("item")) requests += folder.path("item").size();
-    assertEquals(47, requests);
+    assertEquals(57, requests);
   }
 }

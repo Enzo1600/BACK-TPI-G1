@@ -125,6 +125,7 @@ final class DeliveryArtifacts {
             404)
         .add("05 Reglas normales", "ADMIN", "GET", API + "/configuration/assistance", null, 200)
         .check("/rules-version", "AR-MVP-5");
+    String t2 = API + "/tow-trucks/{{truck2_id}}";
     p.folder("02 - Recursos reproducibles")
         .add(
             "06 Crear grua",
@@ -167,6 +168,60 @@ final class DeliveryArtifacts {
         .add(
             "10 Operador disponible",
             "OPERATOR",
+            "PATCH",
+            API + "/operators/me/availability",
+            object("status", "AVAILABLE"),
+            200)
+        .add("10a Perfil operador 2", "OPERATOR2", "GET", API + "/operators/me", null, 200)
+        .capture("operator2_id", "/id")
+        .add(
+            "10b Operador 2 sin grua vinculada",
+            "OPERATOR2",
+            "GET",
+            API + "/tow-trucks/assigned-to-me",
+            null,
+            404)
+        .add(
+            "10c Crear segunda grua",
+            "ADMIN",
+            "POST",
+            API + "/tow-trucks",
+            object(
+                "licensePlate",
+                "TES2{{run_suffix}}",
+                "maximumLoadKg",
+                3000,
+                "supportsNonRollable",
+                true,
+                "supportedTypes",
+                List.of("CAR")),
+            201)
+        .capture("truck2_id", "/id")
+        .add(
+            "10d Vincular operador 2",
+            "ADMIN",
+            "PUT",
+            t2 + "/operator",
+            object("operatorId", "{{operator2_id}}"),
+            200)
+        .add(
+            "10e Activar segunda grua",
+            "ADMIN",
+            "PATCH",
+            t2 + "/operational-status",
+            object("status", "ACTIVE", "reason", "Preparar competencia de gruas"),
+            200)
+        .key("active2")
+        .add(
+            "10f Ubicar segunda grua",
+            "OPERATOR2",
+            "PUT",
+            API + "/tow-trucks/assigned-to-me/location",
+            object("latitude", -31.42, "longitude", -64.21),
+            200)
+        .add(
+            "10g Operador 2 disponible",
+            "OPERATOR2",
             "PATCH",
             API + "/operators/me/availability",
             object("status", "AVAILABLE"),
@@ -321,6 +376,22 @@ final class DeliveryArtifacts {
             API + "/operators/me/availability",
             object("status", "UNAVAILABLE"),
             200)
+        .add(
+            "42a Operador 2 no disponible",
+            "OPERATOR2",
+            "PATCH",
+            API + "/operators/me/availability",
+            object("status", "UNAVAILABLE"),
+            200)
+        .add(
+            "42b Inactivar segunda grua",
+            "ADMIN",
+            "PATCH",
+            t2 + "/operational-status",
+            object("status", "INACTIVE", "reason", "Demostracion finalizada correctamente"),
+            200)
+        .key("inactive2")
+        .add("42c Desvincular segunda grua", "ADMIN", "DELETE", t2 + "/operator", null, 204)
         .add("43 Nueva solicitud sin recurso", "DRIVER", "POST", REQUEST, requestBody(false), 201)
         .key("cancel_create")
         .capture("cancel_request_id", "/id")
@@ -451,7 +522,7 @@ final class DeliveryArtifacts {
             "name",
             "AuxiRuta - Entrega MVP",
             "description",
-            "Preparar el operador con DemoDataSetupTest. Obtener tres tokens PKCE y cargarlos en el entorno local. Ejecutar todas las carpetas en Runner, una iteracion, delay 0. Plazos normales. Detiene el recorrido ante errores; no forzar limpieza de un servicio en curso. Ver docs/ENTREGA.md.",
+            "Preparar ambos operadores con DemoDataSetupTest. Obtener cuatro tokens PKCE y cargarlos en el entorno local. Ejecutar todas las carpetas en Runner, una iteracion, delay 0. Plazos normales. Detiene el recorrido ante errores; no forzar limpieza de un servicio en curso. Ver docs/ENTREGA.md.",
             "schema",
             "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"),
         "item",
@@ -469,13 +540,13 @@ final class DeliveryArtifacts {
   static String initScript() {
     StringBuilder s =
         new StringBuilder(
-            "for (const role of ['admin','operator','driver']) { if (!pm.environment.get(role+'_token')) throw new Error('Falta token '+role); }\npm.collectionVariables.set('run_suffix', pm.variables.replaceIn('{{$randomUUID}}').replace(/-/g,'').slice(0,6));\npm.collectionVariables.set('missing_id', pm.variables.replaceIn('{{$randomUUID}}'));\npm.collectionVariables.set('assignment_page','0');\n");
+            "for (const role of ['admin','operator','operator2','driver']) { if (!pm.environment.get(role+'_token')) throw new Error('Falta token '+role); }\npm.collectionVariables.set('run_suffix', pm.variables.replaceIn('{{$randomUUID}}').replace(/-/g,'').slice(0,6));\npm.collectionVariables.set('missing_id', pm.variables.replaceIn('{{$randomUUID}}'));\npm.collectionVariables.set('assignment_page','0');\n");
     for (String key : steps().stream().map(Step::key).filter(Objects::nonNull).distinct().toList())
       s.append("pm.collectionVariables.set('key_")
           .append(key)
           .append("',pm.variables.replaceIn('{{$randomUUID}}'));\n");
     s.append(
-        "for(const k of ['truck_id','vehicle_id','request_id','cancel_request_id','assignment_id','poll_start'])pm.collectionVariables.unset(k);\n");
+        "for(const k of ['truck_id','truck2_id','operator2_id','vehicle_id','request_id','cancel_request_id','assignment_id','poll_start'])pm.collectionVariables.unset(k);\n");
     return s.toString();
   }
 
@@ -511,7 +582,7 @@ final class DeliveryArtifacts {
           "pm.test('Resultado observable',()=>pm.expect(ready).to.eql(true));if(!ready)pm.execution.setNextRequest(null);\n");
     if (s.name.startsWith("20 "))
       code.append(
-          "if(ready)pm.test('Evaluacion vial real',()=>{pm.expect(data.latestEvaluation.result).to.eql('VIABLE');pm.expect(data.latestEvaluation.candidates.some(c=>c.eligible && c.approachDistanceM>0)).to.eql(true);});\n");
+          "if(ready)pm.test('Dos gruas elegibles y ranking 1-2',()=>{pm.expect(data.latestEvaluation.result).to.eql('VIABLE');const candidates=data.latestEvaluation.candidates; for (const [key,rank] of [['truck_id',1],['truck2_id',2]]) { const candidate=candidates.find(c=>c.towTruckId===pm.collectionVariables.get(key)); pm.expect(candidate,key).to.exist; pm.expect(candidate.eligible).to.eql(true); pm.expect(candidate.approachDistanceM).to.be.above(0); pm.expect(candidate.rankingPosition).to.eql(rank); }});\n");
     if (s.name.startsWith("40 "))
       code.append(
           "pm.test('Una transicion por etapa',()=>{for(const state of ['DISPATCHED','ARRIVED','VEHICLE_LOADED','IN_TRANSIT','COMPLETED'])pm.expect(data.content.filter(h=>h.newStatus===state).length).to.eql(1);});\n");

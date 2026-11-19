@@ -78,7 +78,7 @@ class DeliveryIntegrationTest {
   @Test
   @Order(2)
   void executePublishedCollectionWithJava() throws Exception {
-    String operator = DemoDataSetupTest.prepare();
+    String operator = DemoDataSetupTest.prepareBoth();
     Map<String, String> vars = new HashMap<>();
     vars.put("operator_id", operator);
     vars.put("run_suffix", key().replace("-", "").substring(0, 6));
@@ -136,10 +136,18 @@ class DeliveryIntegrationTest {
           }
           if (step.name().startsWith("20 ") && ready) {
             assertEquals("VIABLE", data.path("latestEvaluation").path("result").asText());
-            boolean route = false;
-            for (var c : data.path("latestEvaluation").path("candidates"))
-              route |= c.path("eligible").asBoolean() && c.path("approachDistanceM").asDouble() > 0;
-            assertTrue(route);
+            var candidates = data.path("latestEvaluation").path("candidates");
+            for (int rank : List.of(1, 2)) {
+              String truck = vars.get(rank == 1 ? "truck_id" : "truck2_id");
+              var candidate =
+                  java.util.stream.StreamSupport.stream(candidates.spliterator(), false)
+                      .filter(c -> c.path("towTruckId").asText().equals(truck))
+                      .findFirst()
+                      .orElseThrow(() -> new AssertionError("Grua no evaluada: " + truck));
+              assertTrue(candidate.path("eligible").asBoolean(), candidate.toString());
+              assertTrue(candidate.path("approachDistanceM").asDouble() > 0);
+              assertEquals(rank, candidate.path("rankingPosition").asInt(), candidate.toString());
+            }
           }
           if (step.name().startsWith("40 "))
             for (String state :
@@ -183,6 +191,13 @@ class DeliveryIntegrationTest {
                 + "' and description='Phase 10 delivery fixture'");
         fixture.requestIds.add(id);
       }
-    fixture.cleanupFixtures();
+    try {
+      fixture.cleanupFixtures();
+    } finally {
+      var second = new Phase7IntegrationTest();
+      second.truck = vars.get("truck2_id");
+      second.operator = vars.get("operator2_id");
+      second.cleanupFixtures();
+    }
   }
 }

@@ -17,7 +17,7 @@ class PrivacyDemoSetupTest {
     prepare();
   }
 
-  static void prepare() throws Exception {
+  static void authenticateRealmAdmin() throws Exception {
     var response =
         formPost(
             "http://localhost:8080/realms/master/protocol/openid-connect/token",
@@ -33,6 +33,10 @@ class PrivacyDemoSetupTest {
             null);
     assertEquals(200, response.statusCode(), "Local Keycloak administration");
     adminToken = json(response.body()).path("access_token").asText();
+  }
+
+  static void prepare() throws Exception {
+    authenticateRealmAdmin();
     ensureIdentity("driver2.demo", "DRIVER");
     ensureIdentity("operator2.demo", "OPERATOR");
 
@@ -94,7 +98,7 @@ class PrivacyDemoSetupTest {
         "Perfiles operador: operator.demo=" + firstOperator + "; operator2.demo=" + secondOperator);
   }
 
-  private static void ensureIdentity(String username, String role) throws Exception {
+  static void ensureIdentity(String username, String role) throws Exception {
     var users = admin("GET", "/users?username=" + encode(username) + "&exact=true", null, 200);
     if (users.isEmpty()) {
       admin(

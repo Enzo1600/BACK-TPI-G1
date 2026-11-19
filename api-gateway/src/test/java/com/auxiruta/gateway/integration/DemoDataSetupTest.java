@@ -11,12 +11,24 @@ class DemoDataSetupTest {
   @Test
   void prepareOperator() throws Exception {
     initialize();
-    prepare();
+    prepareBoth();
     PrivacyDemoSetupTest.prepare();
   }
 
   static String prepare() throws Exception {
-    var response = raw("OPERATOR", "GET", "/api/v1/operators/me", null, null);
+    return prepare("OPERATOR");
+  }
+
+  static String prepareBoth() throws Exception {
+    PrivacyDemoSetupTest.authenticateRealmAdmin();
+    PrivacyDemoSetupTest.ensureIdentity("operator2.demo", "OPERATOR");
+    String first = prepare();
+    prepare("OPERATOR2");
+    return first;
+  }
+
+  static String prepare(String role) throws Exception {
+    var response = raw(role, "GET", "/api/v1/operators/me", null, null);
     String operator;
     if (response.status() == 404)
       operator =
@@ -27,9 +39,9 @@ class DemoDataSetupTest {
                   "/api/v1/operators",
                   object(
                       "keycloakSubject",
-                      claims(TOKENS.get("OPERATOR")).path("sub").asText(),
+                      claims(TOKENS.get(role)).path("sub").asText(),
                       "fullName",
-                      "Operador de demostracion AuxiRuta"),
+                      "Operador de demostracion " + role),
                   201));
     else {
       assertEquals(200, response.status());
@@ -37,7 +49,7 @@ class DemoDataSetupTest {
     }
     assertEquals(
         404,
-        raw("OPERATOR", "GET", "/api/v1/tow-trucks/assigned-to-me", null, null).status(),
+        raw(role, "GET", "/api/v1/tow-trucks/assigned-to-me", null, null).status(),
         "El operador demo tiene una grua vinculada. Finalizar el servicio o desvincular el recurso libre antes de preparar otra demostracion.");
     call(
         "ADMIN",
@@ -57,12 +69,7 @@ class DemoDataSetupTest {
             "validUntil",
             Instant.now().plusSeconds(86400).toString()),
         200);
-    call(
-        "OPERATOR",
-        "PATCH",
-        "/api/v1/operators/me/availability",
-        object("status", "UNAVAILABLE"),
-        200);
+    call(role, "PATCH", "/api/v1/operators/me/availability", object("status", "UNAVAILABLE"), 200);
     return operator;
   }
 }

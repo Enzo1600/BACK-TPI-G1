@@ -28,14 +28,14 @@ Las bases nuevas se inicializan al crear el volumen; después, los scripts SQL a
 
 Compose importa el realm `auxiruta` con `admin.demo`, `operator.demo`, `driver.demo`, `operator2.demo` y `driver2.demo`. Sus contraseñas son las variables `DEMO_ADMIN_PASSWORD`, `DEMO_OPERATOR_PASSWORD` y `DEMO_DRIVER_PASSWORD` del `.env` local. La cuenta `bootstrap-admin` administra Keycloak; no se utiliza como ADMIN de negocio.
 
-Preparar o renovar el perfil de operador para la demostración:
+Preparar o renovar los perfiles de ambos operadores para la demostración:
 
 ```powershell
 .\auxiruta-commons\mvnw.cmd -f auxiruta-commons/pom.xml install
 .\api-gateway\mvnw.cmd -f api-gateway/pom.xml test "-Dauxiruta.seed=true" "-Dtest=DemoDataSetupTest"
 ```
 
-Esta preparación Java autentica mediante PKCE, crea el perfil si falta, activa su registro, establece habilitación LIGHT_TOWING hasta 24 horas después y lo deja UNAVAILABLE. Exige que no tenga grúa vinculada; no desvincula un recurso existente ni libera un servicio comprometido. Puede repetirse para renovar la vigencia. Las grúas, vehículos y solicitudes se crean luego por API, con identificadores nuevos en cada ejecución.
+Esta preparación Java autentica mediante PKCE, crea los perfiles faltantes, activa sus registros, establece habilitación LIGHT_TOWING hasta 24 horas después y los deja UNAVAILABLE. Exige que ninguno tenga grúa vinculada; no desvincula un recurso existente ni libera un servicio comprometido. Puede repetirse para renovar la vigencia. Las grúas, vehículos y solicitudes se crean luego por API, con identificadores nuevos en cada ejecución.
 
 ## 3. Autenticación en Postman
 
@@ -44,9 +44,9 @@ Importar estos dos archivos:
 - [AuxiRuta.postman_collection.json](api/AuxiRuta.postman_collection.json).
 - [Local.postman_environment.json](api/Local.postman_environment.json).
 
-Seleccionar el entorno local. Su `base_url` es `http://localhost:8000`; los tres tokens están vacíos deliberadamente.
+Seleccionar el entorno local. Su `base_url` es `http://localhost:8000`; los cuatro tokens están vacíos deliberadamente.
 
-Obtener un token para cada usuario mediante **OAuth 2.0 → Authorization Code (With PKCE)** en una petición auxiliar de Postman:
+Obtener un token para admin.demo, driver.demo, operator.demo y operator2.demo mediante **OAuth 2.0 → Authorization Code (With PKCE)** en una petición auxiliar de Postman:
 
 | Campo | Valor |
 |---|---|
@@ -58,7 +58,7 @@ Obtener un token para cada usuario mediante **OAuth 2.0 → Authorization Code (
 | Code Challenge Method | SHA-256 / S256 |
 | Scope | `openid` |
 
-Usar **Get New Access Token**, iniciar sesión con cada identidad y copiar únicamente su access token al valor local correspondiente: `admin_token`, `operator_token` y `driver_token`. `prompt=login` permite cambiar de usuario aunque exista una sesión previa. No activar Share Token/Sync Token ni exportar credenciales. Los tres valores están marcados como secretos en el entorno de ejemplo. Si aparece 401 por expiración, renovar los tokens antes de continuar; no reiniciar automáticamente una secuencia que dejó un servicio en curso.
+Usar **Get New Access Token**, iniciar sesión con cada identidad y copiar únicamente su access token al valor local correspondiente: `admin_token`, `operator_token` y `driver_token` y `operator2_token`. `prompt=login` permite cambiar de usuario aunque exista una sesión previa. No activar Share Token/Sync Token ni exportar credenciales. Los cuatro valores están marcados como secretos en el entorno de ejemplo. Si aparece 401 por expiración, renovar los tokens antes de continuar; no reiniciar automáticamente una secuencia que dejó un servicio en curso.
 
 La configuración sigue el [flujo PKCE documentado por Postman](https://learning.postman.com/docs/use/send-requests/authorization/oauth-20). No se habilita password grant. El cliente técnico de Assistance permanece interno; sus credenciales no se necesitan para ejecutar la colección.
 
@@ -74,7 +74,7 @@ Ejecutar la colección completa en **Collection Runner**, una iteración, delay 
 | 04 — Aceptación y ejecución | Confirmación durable, cancelación prohibida después de aceptar, vínculo protegido, secuencia hasta COMPLETED, nota válida, historial sin duplicados y liberación confirmada |
 | 05 — Cancelación y cierre | Otra solicitud cancelada antes de aceptar; operador UNAVAILABLE; grúa de prueba INACTIVE y desvinculada |
 
-Los 47 pasos generan patentes TEST/TST y claves nuevas; repetir una operación idempotente dentro del recorrido conserva la misma clave. Los IDs devueltos se guardan como variables de colección. La búsqueda de la propuesta recorre páginas y filtra por solicitud propia. Las consultas de espera tienen un límite de 45 segundos; no amplían plazos comerciales. Las transiciones de ejecución representan declaraciones del operador: no esperan la duración estimada del viaje.
+Los 57 pasos generan patentes TEST/TST y claves nuevas; repetir una operación idempotente dentro del recorrido conserva la misma clave. Los IDs devueltos se guardan como variables de colección. La búsqueda de la propuesta recorre páginas y filtra por solicitud propia. Las consultas de espera tienen un límite de 45 segundos; no amplían plazos comerciales. En el paso 20 se verifica que ambas grúas sean elegibles y ocupen los puestos 1 y 2. Las ubicaciones de la demostración favorecen a operator.demo, que recibe la propuesta y completa el traslado. Al cierre ambos operadores quedan UNAVAILABLE y las dos grúas quedan inactivas y desvinculadas. Las transiciones de ejecución representan declaraciones del operador: no esperan la duración estimada del viaje.
 
 Los saltos de ejecución solo funcionan en Runner, según la [documentación de flujos de Postman](https://learning.postman.com/docs/tests-and-scripts/running-collections/building-workflows). Enviar manualmente cada petición requiere respetar el orden y los plazos: una propuesta normal dura como máximo 60 segundos. No usar el perfil demo para este recorrido guiado; sus ventanas son deliberadamente más cortas.
 
